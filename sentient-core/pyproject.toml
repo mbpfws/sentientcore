@@ -1,0 +1,41 @@
+[tool.poetry]
+name = "sentient-core"
+version = "0.1.0"
+description = "A multi-agent RAG system for guided application development."
+authors = ["Sentient Core AI Developer <dev@sentientcore.ai>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+# Core Agent & AI Frameworks
+uagents = "*"
+langchain = "*"
+langgraph = "*"
+groq = "*"
+google-genai = "*"
+
+# Web & App Framework
+streamlit = "*"
+
+# E2B - Secure Code Execution Sandbox
+e2b = "*"
+
+# Search & Retrieval Tools
+tavily-python = "*"
+exa-py = "*"
+
+# Utilities
+python-dotenv = "*"
+pydantic = "*"
+pydantic-settings = "*"
+httpx = "*"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
+ruff = "^0.4.10"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
