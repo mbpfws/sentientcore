@@ -1,0 +1,95 @@
+'use client';
+
+import { useState } from 'react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/theme-toggle';
+import ChatInterface from '@/components/chat-interface';
+import TaskView from '@/components/task-view';
+import AgentsList from '@/components/agents-list';
+
+export default function Home() {
+  const [activeTab, setActiveTab] = useState('chat');
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      {/* Header */}
+      <header className="border-b">
+        <div className="container flex items-center justify-between py-4">
+          <h1 className="text-2xl font-bold">Sentient Core</h1>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <main className="flex-1 container py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <Card>
+              <CardHeader>
+                <CardTitle>Workflows</CardTitle>
+                <CardDescription>
+                  Select the workflow mode to use
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Button variant="outline" className="w-full justify-start" data-selected={true}>
+                    <span className="mr-2">🧠</span> Intelligent RAG
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start">
+                    <span className="mr-2">🤖</span> Multi-Agent RAG
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start">
+                    <span className="mr-2">🔄</span> Legacy Workflow
+                  </Button>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button variant="destructive" className="w-full">
+                  Reset Session
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+
+          {/* Main area */}
+          <div className="lg:col-span-3">
+            <Tabs defaultValue="chat" value={activeTab} onValueChange={setActiveTab}>
+              <div className="flex justify-between items-center mb-4">
+                <TabsList>
+                  <TabsTrigger value="chat">Chat</TabsTrigger>
+                  <TabsTrigger value="tasks">Tasks</TabsTrigger>
+                  <TabsTrigger value="agents">Agents</TabsTrigger>
+                </TabsList>
+              </div>
+
+              <TabsContent value="chat" className="space-y-4">
+                <ChatInterface />
+              </TabsContent>
+
+              <TabsContent value="tasks">
+                <TaskView />
+              </TabsContent>
+
+              <TabsContent value="agents">
+                <AgentsList />
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t py-4">
+        <div className="container text-center text-sm text-muted-foreground">
+          &copy; 2025 Sentient Core - Multi-Agent RAG System
+        </div>
+      </footer>
+    </div>
+  );
+}
