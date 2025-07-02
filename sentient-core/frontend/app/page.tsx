@@ -8,8 +8,10 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import ChatInterface from '@/components/chat-interface';
 import TaskView from '@/components/task-view';
 import AgentsList from '@/components/agents-list';
+import { useAppContext } from '@/lib/context/app-context';
 
 export default function Home() {
+  const { activeWorkflow, setActiveWorkflow, resetSession } = useAppContext();
   const [activeTab, setActiveTab] = useState('chat');
 
   return (
@@ -38,19 +40,35 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <Button variant="outline" className="w-full justify-start" data-selected={true}>
+                  <Button 
+                    variant={activeWorkflow === 'intelligent' ? 'default' : 'outline'}
+                    className="w-full justify-start" 
+                    onClick={() => setActiveWorkflow('intelligent')}
+                  >
                     <span className="mr-2">🧠</span> Intelligent RAG
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button 
+                    variant={activeWorkflow === 'multi_agent' ? 'default' : 'outline'}
+                    className="w-full justify-start"
+                    onClick={() => setActiveWorkflow('multi_agent')}
+                  >
                     <span className="mr-2">🤖</span> Multi-Agent RAG
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button 
+                    variant={activeWorkflow === 'legacy' ? 'default' : 'outline'}
+                    className="w-full justify-start"
+                    onClick={() => setActiveWorkflow('legacy')}
+                  >
                     <span className="mr-2">🔄</span> Legacy Workflow
                   </Button>
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="destructive" className="w-full">
+                <Button 
+                  variant="destructive" 
+                  className="w-full"
+                  onClick={resetSession}
+                >
                   Reset Session
                 </Button>
               </CardFooter>
