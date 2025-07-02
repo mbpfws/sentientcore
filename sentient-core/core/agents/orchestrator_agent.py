@@ -1,7 +1,9 @@
 from langgraph.graph import StateGraph, END
-from core.models import Task, AppState, Message
-from core.services.llm_service import LLMService, GroqModel
+from core.models import Task, AppState, Message, LogEntry
+from core.services.llm_service import LLMService
 import json
+import re
+from typing import cast
 
 class OrchestratorAgent:
     """
@@ -12,121 +14,178 @@ class OrchestratorAgent:
     def __init__(self, llm_service: LLMService):
         self.llm_service = llm_service
 
-    def invoke(self, state: AppState) -> AppState:
+    def invoke(self, state: AppState) -> dict:
         """
-        The entry point for the orchestrator agent.
-        It's responsible for planning and responding to the user.
+        The entry point for the orchestrator agent. It's responsible for planning.
+        This method is designed to be a "planning step" that can be called
+        multiple times until a satisfactory plan is created.
         """
         print("---ORCHESTRATOR AGENT---")
 
-        # Dynamically select the model based on whether an image is present
-        model: GroqModel = (
-            "meta-llama/llama-4-scout-17b-16e-instruct"
-            if state.image
-            else "llama-3.3-70b-versatile"
-        )
-        print(f"Using model: {model}")
-
-        # Add the user's prompt to the message history
-        state.messages.append(Message(sender="user", content=state.user_prompt, image=state.image))
+        # Primary model selection: Use Gemini for multimodal, otherwise use Groq.
+        primary_model = "gemini-2.5-flash" if state.image else "llama-3.3-70b-versatile"
+        fallback_model = "gemini-2.5-flash"
+        
+        print(f"Primary model: {primary_model}, Fallback: {fallback_model}")
 
         system_prompt = """
-You are a world-class AI orchestrator for a software development platform.
-Your primary role is to communicate with the user, understand their request (which may include images),
-and break it down into a series of actionable tasks for other specialized AI agents.
+You are a Senior AI Solutions Architect. Your goal is to help a user turn their idea into a fully-specified software project. You are multilingual and must communicate in the user's language.
 
-**RESPONSE LANGUAGE:**
-First, detect the user's language. You MUST respond in the same language.
-
-**IMAGE ANALYSIS:**
-If the user provides an image, analyze it carefully. The user will likely ask to build an application
-based on the visual content of the image. Your response should reflect that you have seen and
-understood the image.
-
-**CORE INSTRUCTIONS:**
-1.  Engage the user in a helpful, conversational manner.
-2.  If the user's request is vague, ask clarifying questions.
-3.  If the request is clear, create a high-level plan of tasks.
-4.  Each task must be assigned to a specific agent (e.g., 'research', 'design', 'code').
-5.  You MUST ALWAYS return your response as a single, valid JSON object. Do NOT add any text
-    before or after the JSON object.
+**Your Process:**
+1.  **Analyze the Request:** Carefully analyze the user's prompt and any provided images.
+2.  **Clarify if Necessary:** If the request is vague (e.g., "make me a cool app"), you MUST ask specific, guiding questions to understand their goals. Do not just ask "what do you want?". Instead, suggest possibilities. For example: "That sounds interesting! To get started, could you tell me what the app's main purpose will be? For example, is it for e-commerce, social networking, education, or something else?"
+3.  **Formulate a Plan:** Once you have a clear understanding, create a high-level project plan. This plan should consist of logical steps (tasks) assigned to specialized agents ('research' or 'design').
+4.  **Converse and Plan:** Your response MUST be a single JSON object. This object contains your conversational reply and, if ready, the plan.
 
 **JSON OUTPUT FORMAT:**
-Your entire output MUST be a JSON object with the following structure:
+You MUST return a single JSON object. Do NOT add any text before or after it.
+
 {
-  "response": "<Your conversational response to the user, in their language>",
-  "language": "<The detected language code, e.g., 'en', 'es', 'vi'>",
-  "tasks": [
+  "response": "<Your conversational response to the user, in their language. Ask clarifying questions here if needed.>",
+  "plan": [
     {
-      "description": "<A clear and concise description of the task>",
-      "agent": "<The name of the agent assigned to this task>"
+      "description": "<A clear and concise description of the task for another agent>",
+      "agent": "<'research' or 'design'>"
     }
   ]
 }
 
-- The "response" field is mandatory.
-- The "language" field is mandatory.
-- The "tasks" field is optional. Only include it if the user's request is clear enough to create a plan.
+**- `plan`:** If the user's request is still too vague to create a plan, return an empty list `[]`.
+**- `response`:** This is your way of talking to the user. Use it to guide the conversation.
 
-Example for a clear request in English:
+**Example: Vague Request**
+User says: "I want to make an app for my business."
+Your JSON output:
 {
-  "response": "Great! I'll start by researching modern e-commerce architectures.",
-  "language": "en",
-  "tasks": [
+  "response": "I can certainly help with that! To start, could you tell me a bit about your business and what you'd like the app to do for your customers or employees?",
+  "plan": []
+}
+
+**Example: Clearer Request**
+User says: "tôi muốn tạo một app giúp dạy viết tiếng Anh IELTS" (I want to create an app to help teach IELTS English writing)
+Your JSON output:
+{
+  "response": "That's a great idea! An IELTS writing assistant could be very helpful. I'll start by creating a plan. First, I'll have our research agent investigate the key features of successful IELTS preparation apps. Then, I'll have our design agent create some initial wireframes for the main user interface.",
+  "plan": [
     {
-      "description": "Research modern e-commerce platform architectures and technology stacks.",
+      "description": "Investigate and analyze the top 3 existing IELTS writing assistant applications, focusing on their core features, user feedback, and monetization strategies.",
       "agent": "research"
+    },
+    {
+        "description": "Create initial low-fidelity wireframes for the main user workflow: user registration, essay submission, and feedback view.",
+        "agent": "design"
     }
   ]
 }
-
-Example for a vague request in Vietnamese:
-{
-  "response": "Chào bạn, tôi có thể giúp gì cho bạn hôm nay?",
-  "language": "vi",
-  "tasks": []
-}
-
-Now, begin.
 """
-
+        response_json_str = ""
+        model_used = None
+        
+        # Try primary model first, fallback to secondary if rate limited
+        for model in [primary_model, fallback_model]:
+            try:
+                print(f"Attempting to use model: {model}")
+                user_query = state.messages[-1].content if state.messages else ""
+                full_prompt = f"{system_prompt}\n\nUser query: {user_query}"
+                
+                response = self.llm_service.generate_response(
+                    model_name=model,
+                    prompt=full_prompt,
+                    image_bytes=state.image,
+                    stream=False,
+                )
+                # Since stream=False, the response should be a string. Cast it for the linter.
+                response_json_str = cast(str, response)
+                model_used = model
+                print(f"Successfully used model: {model}")
+                break
+            except Exception as e:
+                error_msg = str(e)
+                print(f"Error with model {model}: {error_msg}")
+                
+                # Check if it's a rate limit error
+                if "rate_limit_exceeded" in error_msg or "429" in error_msg:
+                    print(f"Rate limit hit for {model}, trying fallback...")
+                    if model == fallback_model:
+                        # If fallback also fails, raise the error to be caught by outer try-catch
+                        raise Exception(f"Both primary and fallback models failed. Last error: {str(e)}")
+                    continue
+                else:
+                    # For non-rate-limit errors, try fallback once
+                    if model == primary_model:
+                        print(f"Non-rate-limit error with {model}, trying fallback...")
+                        continue
+                    else:
+                        # If fallback also fails with non-rate-limit error, raise error
+                        raise e
+        
         try:
-            # Invoke the LLM service
-            response_json_str = self.llm_service.invoke(
-                system_prompt=system_prompt,
-                user_prompt=state.user_prompt,
-                image_bytes=state.image,
-                model=model,
-            )
 
-            # Parse the JSON response
-            response_data = json.loads(response_json_str)
+            # --- Final, robust helper to find and parse the last JSON block ---
+            def extract_json_from_string(s: str) -> str:
+                """Finds all JSON markdown blocks and returns the last one."""
+                # Regex to find all ```json ... ``` blocks
+                json_blocks = re.findall(r'```json\s*(\{.*?\})\s*```', s, re.DOTALL)
+                if json_blocks:
+                    # Return the last JSON block found
+                    return json_blocks[-1]
+                
+                # Fallback for cases where there are no markdown fences
+                match = re.search(r'(\{.*\})', s, re.DOTALL)
+                if match:
+                    return match.group(1)
 
-            # Update state with the response and tasks
+                return s # Return original string if no JSON is found
+
+            cleaned_json_str = extract_json_from_string(response_json_str)
+            response_data = json.loads(cleaned_json_str)
+
+            # The response is now the *only* thing that goes into the message history
             state.messages.append(
                 Message(sender="assistant", content=response_data["response"])
             )
-            state.language = response_data.get("language", "en") # Update language
             
-            if response_data.get("tasks"):
-                new_tasks = [Task(**task_data) for task_data in response_data["tasks"]]
+            new_tasks = []
+            if response_data.get("plan"):
+                new_tasks = [Task(**task_data) for task_data in response_data["plan"]]
                 state.tasks.extend(new_tasks)
-                print(f"Added {len(new_tasks)} new tasks.")
+            
+            log_msg = f"Added {len(new_tasks)} new tasks."
+            state.logs.append(LogEntry(source="OrchestratorAgent", message=log_msg))
+            print(log_msg)
 
         except (json.JSONDecodeError, KeyError) as e:
-            print(f"Error: Could not decode LLM response: {response_json_str}")
+            # Enhanced error logging
+            cleaned_str_for_log = "Could not clean."
+            try:
+                cleaned_str_for_log = extract_json_from_string(response_json_str)
+            except:
+                pass
+            error_msg = f"Error: Could not decode LLM response from {model_used}. Raw: '{response_json_str}'. Cleaned attempt: '{cleaned_str_for_log}'"
+            state.logs.append(LogEntry(source="OrchestratorAgent", message=error_msg))
+            print(error_msg)
             state.messages.append(
                 Message(
                     sender="assistant",
-                    content="I'm having a little trouble thinking straight right now. Could you please rephrase that?",
+                    content="I'm having a little trouble thinking straight. Could you please rephrase?",
+                )
+            )
+        except Exception as e:
+            # Handle model failure errors
+            error_msg = f"[OrchestratorAgent] Error: {str(e)}"
+            state.logs.append(LogEntry(source="OrchestratorAgent", message=error_msg))
+            print(error_msg)
+            state.messages.append(
+                Message(
+                    sender="assistant",
+                    content="I'm experiencing technical difficulties. Please try again in a moment.",
                 )
             )
 
-        # Clear the user prompt and image to prevent reprocessing
-        state.user_prompt = ""
-        state.image = None
+        # DO NOT clear the image here. The UI will manage the state.
+        # state.image = None
 
         print(
             f"Ending workflow. Current state: {len(state.messages)} messages, {len(state.tasks)} tasks."
         )
-        return state
+        return state.model_dump() # Return the updated state as a dictionary

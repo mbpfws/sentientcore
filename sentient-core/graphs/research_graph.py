@@ -12,6 +12,14 @@ def should_continue(state: ResearchState) -> str:
     else:
         return "synthesize_report"
 
+def execute_search_with_streaming(state: ResearchState) -> ResearchState:
+    """
+    Wrapper function to execute search with streaming support.
+    """
+    # Get streaming callback from state if available
+    stream_callback = getattr(state, 'stream_callback', None)
+    return research_agent.execute_search(state, stream_callback)
+
 # Initialize services and agents
 llm_service = LLMService()
 research_agent = ResearchAgent(llm_service)
@@ -21,7 +29,7 @@ workflow = StateGraph(ResearchState)
 
 # Add nodes
 workflow.add_node("plan_steps", research_agent.plan_steps)
-workflow.add_node("execute_search", research_agent.execute_search)
+workflow.add_node("execute_search", execute_search_with_streaming)
 workflow.add_node("synthesize_report", research_agent.synthesize_report)
 
 # Set entry and exit points

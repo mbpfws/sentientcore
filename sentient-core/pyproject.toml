@@ -14,6 +14,9 @@ langchain = "*"
 langgraph = "*"
 groq = "*"
 google-genai = "*"
+fpdf2 = "*"
+Pillow = "*"
+python-dotenv = "*"
 
 # Web & App Framework
 streamlit = "*"
@@ -26,7 +29,6 @@ tavily-python = "*"
 exa-py = "*"
 
 # Utilities
-python-dotenv = "*"
 pydantic = "*"
 pydantic-settings = "*"
 httpx = "*"

@@ -2,11 +2,14 @@ from pydantic import BaseModel, Field
 from typing import List, Literal
 from datetime import datetime
 import uuid
+from enum import Enum
+from pydantic import BaseModel, Field
 
-class TaskStatus:
+class TaskStatus(str, Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    DONE = "done"
     FAILED = "failed"
 
 class Task(BaseModel):
@@ -15,6 +18,12 @@ class Task(BaseModel):
     agent: str
     status: str = TaskStatus.PENDING
     result: str | None = None
+    follow_up_questions: List[str] | None = None
+    # Additional attributes for intelligent orchestration
+    sequence: int = 1
+    dependencies: List[str] = Field(default_factory=list)
+    estimated_duration: str = "medium"  # "short", "medium", "long"
+    user_confirmation_required: bool = True
 
 class Message(BaseModel):
     sender: str
@@ -39,6 +48,13 @@ class ResearchState(BaseModel):
     steps: List[ResearchStep] = Field(default_factory=list)
     logs: List[LogEntry] = Field(default_factory=list)
     final_report: str | None = None
+    continual_search_suggestions: List[str] = Field(default_factory=list)
+    stream_callback: object = Field(default=None, exclude=True)  # Exclude from serialization
+
+class ResearchResult(BaseModel):
+    """Represents the final output of the research agent."""
+    report: str
+    continual_search_suggestions: List[str]
 
 class AppState(BaseModel):
     """
@@ -49,4 +65,5 @@ class AppState(BaseModel):
     logs: List[LogEntry] = Field(default_factory=list)
     user_prompt: str = ""
     image: bytes | None = None
-    language: str = "en" 
+    language: str = "en"
+    task_to_run_id: str | None = None 
