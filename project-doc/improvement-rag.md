@@ -1,48 +1,131 @@
-As now, the order of tasks are not sequential and unmanageable, I mean are there any monitor agent or assistant one that can monitor the whole flow of conversation that may having back-and-forth modification and manipulation from user and also I want to have all tasks' actions carried by specialized agents being monitored and verbose into front-end and these must be finished before another can take place. And there must be a clear session to restart from the beginning. So let's take an example to make clear of how these should be like, starting from something very vague (and the conversation will be in charge by orchestrator with user). In my imagination there should be a very robust design of agents, graphs - sub-graphs and nodes, tools, and states  and memory (short vs long-term memory) using what we currently have Groq API, Google Gemini API (we can use OpenAI compatibility for less hassle), Lang Graph, Lang Chain, Pandytic, and external search service either Tavily or Exa but preferably any free services that you can offer; and E2B for code interpreter, computer use, stream and render preview front end. The system is highly autonomous and must handle the hassle of asking for too technical details from user but address multiple tasks (not necessarily to build an app), across multiple industries, departments, positions of job, and regardless of technical expertise.
 
-## In-charge agents
-- Ultra orchestrator with assistant: will handle the conversation from user (regardless of language input it will response in regarded language); assign tasks; using all supported tools and can even set up a new specialized agent for edge cases 
-	- This agent understand the flow very thoroughly to self decide on which agents to handle the up-coming tasks, derive to which sub-graph and in which orders
-	- This agent can mange to direct users from off-topic conversation, prevent exploitation from the user if not used in the correct purpose (for example after 7 turns of conversation but going nowhere will warn the user and reset conversation; and the 2nd time this happens will ban user IP for 1 hour of using the service)
-	- This agent can understand image and documents so make sure to use one with vision enabled model
-	- this agent can understand voice input again make sure to prepare models with capability to understand audio 
-	- This agent can also help with gradually making user's request more elaborative, detailed, accurate and sufficient to enough deriving into overview plans for latter tasks and graphs
-	- This agent can self decide when to use search tool itself to understand more about the request, or to correct user's inaccurate requests due to wrong uses
-	- This agent and his assistant self decide on when it is enough to break-down into assigned tasks for specialized agent and their sub-graphs
-	- This agent and his assistant can self decide on when and how to create new specialized agent and design new sub-graphs for edge cases
-	- prepare fallback with multiple models from both Groq API (3.3 llama, 4.0 llama and other models ) and , Gemini (gemini-2.5-flash, gemini-2.0-flash)
-	- The agent is equipped with lightweight database to be in charge of whole conversation and actions/state and results from other agents and graphs
-- Research agent: in charge of researching tasks - still in development but this agent will handle different kinds of research and manage the research sub-graph - the research techniques can be multi-steps needing consolidation, validation etc (you can advice to make this more robust). Some of the research job can be listed like 
-	- Knowledge research: understood the entry to build sequences of research terms and consolidation to a comprehensive and hierarchical report
-	- Deep-research: a more fine-tuning of the above but more steps, more reasoning in between, multiple sources , more robust and enhance sub-steps and of course the final report is lengthier and dive deep down
-	- Best-in-class: this is more for tech stacks evaluation and reasoning to pick the combination of stacks suitable for build-app job
-- Architect planner agent: still in development but in general will work collaboratively with research, front-end and back-end developer can consolidate, reasoning, synthesize knowledge to produce High-level plan, PRD, product tech specification, action plans in detail, break-down build tasks etc. And architect planner can distribute these plans into long-term build 4 layers of memory that is hierarchical, chunked, indexed, vectorized, categorized and relational to facilitate development
-	- The 4 layers of long term memories are:
-		- Knowledge documents synthesis
-		- Build conversation between user and agent developer
-		- codebase knowledge
-		- stack and dependencies documents
-- front-end developer agent: still in development but make it ready to connect with its sub-graph, this work collaboratively with architect planner and research agent and back-end agent. highly capable of front-end design tasks
-- back-end development agent: still in development and similar to the above but handle back-end tasks and work closely to front-end developer
-- coding agent: will work under both front-end and back-end developer to work for which sub-graph and tasks that he is assigned to
-- a monitoring agent to understand the back and forth flow in main graph and sub-graphs to call orchestrator to follow up and to regulate the whole process and the states 
 
-## Graphs and sub-graphs and states
-these knowledges are still brand new to me but my understand is these may include very robust specialized flow and conditions for the above agents to fulfil their tasks they can include graph like
+---
 
-- Orchestrator graph
-- project architecture graph
-- research, report and knowledge synthesis graph
-- front-end graph (including mockup, wireframe, prototype app, and development stages)
-- back-end graph (including back-end architect proposal, back-end development execution plan etc)
-- the build graph: this may inclde the actual build that step by step take place with rigid monitoring and collaborative work between front and back and with modification from user too
+## Autonomous Multi-Agent RAG System for Full-Stack Development
 
-Because this is a highly autonomous multi-agent RAG system so there must be a robust back and forth between user, agents, graphs and sub-graphs and states, models, tools uses. Though it is still just a walk me through step in which from user input  the end expectation is ready-to-push to database of 4 memory layer knowledgebases that sufficient for a hierarchical and sequential build steps take place for latter. In between of these there will be various in-depth build documents, data analysis, mini-app and prototypes that are in artifacts form to be able to download, rendered to front end (NextJS prototypes, streamlit app, gladio app, python flash etc)  and ready to view and decide by users.
+### 1. Executive Summary
 
-So which all the nuances and complexity as describe above this is  an example in terms of conversation take place which occure all agents, sub-graph, sophistication of states managements, memory uses and back-and forth tasks passing, collaboration not only between agents themselves but between the user (to modify and manipulate to make orchestrator back-and forth execute his decision, and assign tasks and graphs etc) with agent
+This document outlines the design for a highly autonomous multi-agent RAG (Retrieval-Augmented Generation) system engineered to streamline the full-stack application development lifecycle. The system is designed to interpret vague or high-level user requests, progressively refine them, and orchestrate a series of specialized AI agents to generate comprehensive development artifacts, from initial planning to code implementation. Key features include robust workflow management via stateful graphs, dynamic agent creation, sophisticated memory management, and real-time user interaction with visual feedback.
 
-Of course. Here is a detailed, conversational example of how the highly autonomous multi-agent RAG system you described could work, starting with a user's vague request and demonstrating the interaction between the various components.
+### 2. Problem Statement & System Objectives
 
+Current development workflows often suffer from non-sequential task execution, lack of centralized monitoring, and inefficient management of iterative user feedback. This system addresses these challenges by:
+
+*   **Orchestrating Sequential and Manageable Tasks**: Ensuring that development tasks are executed in a defined, monitored, and sequential manner, with clear dependencies.
+*   **Enabling Real-time Monitoring and Verbosity**: Providing a front-end interface for real-time monitoring of agent actions, task progress, and system states.
+*   **Facilitating Dynamic User Interaction**: Supporting back-and-forth modifications and manipulations from the user while maintaining conversational context and system integrity.
+*   **Ensuring Task Completion and Session Control**: Guaranteeing that specific tasks are completed before subsequent ones commence, and offering clear session management, including restart capabilities.
+*   **Handling Vague and Non-Technical Inputs**: Autonomously refining ambiguous user requests across various industries, departments, and technical expertise levels, minimizing the need for users to provide overly technical details.
+
+### 3. System Architecture Overview
+
+The system is built upon a robust design incorporating specialized agents, directed acyclic graphs (DAGs) for workflow orchestration, state management, and a multi-layered memory system.
+
+#### 3.1. Agent Architecture
+
+The system comprises a suite of specialized agents, each with distinct responsibilities, collaborating to achieve complex development goals.
+
+*   **3.1.1. Ultra Orchestrator Agent (with Assistant)**
+    This is the central control unit, responsible for managing the entire system flow, user interaction, and task delegation.
+    *   **Conversation Management**:
+        *   Handles user input regardless of language, responding in the detected language.
+        *   Manages conversational flow, guiding users from off-topic discussions.
+        *   Implements anti-exploitation policies (e.g., warning and resetting conversations after N unproductive turns, temporary IP bans for repeated misuse).
+        *   Possesses multimodal capabilities (vision-enabled for image/document understanding, audio-enabled for voice input).
+        *   Iteratively refines user requests, guiding them to provide more elaborative, detailed, accurate, and sufficient information for plan derivation.
+    *   **Task Orchestration & System Control**:
+        *   Autonomously determines which specialized agents and sub-graphs are required for upcoming tasks and their execution order.
+        *   Decides when to utilize external search tools (e.g., Tavily, Exa) to clarify requests or correct user inaccuracies.
+        *   Determines the appropriate moment to break down requests into assigned tasks for specialized agents and their respective sub-graphs.
+        *   Autonomously decides when and how to create new specialized agents and design new sub-graphs for edge cases.
+        *   Manages fallback mechanisms, utilizing multiple models from Groq API (e.g., Llama 3.1, Llama 4.0) and Google Gemini API (e.g., Gemini 1.5 Flash, Gemini 1.5 Pro).
+    *   **State & Memory Management**: Equipped with a lightweight internal database to manage the entire conversation history, agent actions, system states, and results from other agents and graphs.
+
+*   **3.1.2. Research Agent**
+    Responsible for comprehensive research, knowledge acquisition, and synthesis. This agent manages its dedicated research sub-graph, employing multi-step techniques for consolidation and validation.
+    *   **Knowledge Research**: Builds sequences of research terms and consolidates findings into comprehensive, hierarchical reports.
+    *   **Deep Research**: Extends knowledge research with more intricate steps, enhanced reasoning, multiple source validation, and produces lengthier, in-depth reports.
+    *   **Best-in-Class Evaluation**: Specializes in evaluating and reasoning about technology stacks to recommend optimal combinations for specific application development projects.
+
+*   **3.1.3. Architect Planner Agent**
+    Collaborates with the Research, Front-end, and Back-end Developer Agents to consolidate, reason, and synthesize knowledge into actionable development plans.
+    *   **Deliverables**: Produces High-Level Plans, Product Requirement Documents (PRDs), Technical Specifications, and detailed Action Plans.
+    *   **Knowledge Distribution**: Distributes these plans into the long-term memory system, ensuring hierarchical, chunked, indexed, vectorized, categorized, and relational storage for facilitated development.
+
+*   **3.1.4. Front-end Developer Agent**
+    Highly capable of front-end design and development tasks, working collaboratively with the Architect Planner, Research, and Back-end Developer Agents. Connects with its dedicated sub-graph for execution.
+
+*   **3.1.5. Back-end Developer Agent**
+    Handles back-end architecture proposals and development execution plans, working closely with the Architect Planner, Research, and Front-end Developer Agents.
+
+*   **3.1.6. Coding Agent**
+    An executor agent that operates under the direction of both Front-end and Back-end Developer Agents, responsible for implementing specific code tasks within assigned sub-graphs.
+
+*   **3.1.7. Monitoring Agent**
+    Provides real-time oversight of the main graph and all sub-graphs, tracking task progression, agent states, and inter-agent communication. It alerts the Ultra Orchestrator Agent to deviations or completion events, ensuring process regulation and adherence to workflow.
+
+#### 3.2. Workflow Orchestration: Graphs and State Management
+
+The system leverages LangGraph to define robust, specialized workflows and state transitions for agents to fulfill their tasks. This ensures a highly autonomous yet controlled execution environment.
+
+*   **3.2.1. Graph Types**:
+    *   **Orchestrator Graph**: Manages the overall system flow, user interaction, and high-level task delegation.
+    *   **Project Architecture Graph**: Defines the flow for generating high-level architectural designs and specifications.
+    *   **Research, Report, and Knowledge Synthesis Graph**: Governs the various research methodologies and knowledge consolidation processes.
+    *   **Front-end Development Graph**: Encompasses stages from mockup and wireframe generation to prototype development and full front-end implementation.
+    *   **Back-end Development Graph**: Covers back-end architecture proposals, API design, database integration, and development execution.
+    *   **Build Execution Graph**: Manages the actual step-by-step build process, ensuring rigid monitoring and collaborative work between front-end and back-end agents, accommodating user modifications.
+
+*   **3.2.2. State Management**: Critical for maintaining context, tracking task progress, and enabling seamless back-and-forth interactions between users, agents, graphs, and tools. States ensure that tasks are completed sequentially and that the system can resume from any point.
+
+#### 3.3. Memory Management
+
+The system employs a sophisticated memory architecture to support both short-term conversational context and long-term knowledge retention.
+
+*   **3.3.1. Short-Term Memory**: Managed by the Ultra Orchestrator Agent's lightweight database, this stores the current conversation context, recent agent actions, and immediate task states.
+*   **3.3.2. Long-Term Memory (4-Layer Hierarchical Knowledge Base)**: Designed to facilitate continuous development and learning, this robust knowledge base is hierarchical, chunked, indexed, vectorized, categorized, and relational.
+    *   **Layer 1: Knowledge Documents Synthesis**: Consolidated and refined research findings, technical reports, and general domain knowledge.
+    *   **Layer 2: Build Conversation History**: Detailed logs of interactions between the user and the agent developer, capturing requirements, feedback, and decisions.
+    *   **Layer 3: Codebase Knowledge**: Structured representation of generated code, architectural patterns, best practices, and internal code documentation.
+    *   **Layer 4: Stack and Dependencies Documents**: Comprehensive documentation on chosen technologies, libraries, frameworks, and their interdependencies.
+
+### 4. Technical Stack
+
+The system leverages a modern and robust set of technologies to ensure high performance, flexibility, and scalability.
+
+*   **Large Language Models (LLMs)**:
+    *   **Groq API**: Utilizes high-speed inference for models like Llama 3.1, Llama 4.0, and other compatible models.
+    *   **Google Gemini API**: Integrates with Gemini 1.5 Flash and Gemini 1.5 Pro for diverse model capabilities.
+    *   **OpenAI Compatibility**: Ensures flexibility and broader model access with OpenAI-compatible APIs.
+*   **Orchestration & Frameworks**:
+    *   **LangGraph**: Core framework for defining stateful, multi-agent workflows and complex graph structures.
+    *   **LangChain**: Provides foundational components for LLM applications, including prompt management, chaining, and integrations.
+    *   **Pydantic**: Used for data validation and settings management, ensuring robust data models across agents.
+*   **External Services**:
+    *   **External Search Service**: Integrates with services like Tavily or Exa for real-time information retrieval. Preference is given to cost-effective or free alternatives where feasible.
+    *   **E2B**: Utilized for secure and isolated code interpretation, computer use, and streaming/rendering of front-end previews.
+*   **Front-end Rendering**: Supports rendering prototypes and mini-apps using frameworks like Next.js, Streamlit, Gradio, and Python Flask.
+
+### 5. Workflow Example & User Interaction
+
+The system is designed to handle highly autonomous operations, starting from a very vague user input and progressively refining it through orchestrated agent collaboration.
+
+**Example Scenario**: A user expresses a vague desire to "build an app for managing personal finances."
+
+1.  **Orchestrator Engagement**: The Ultra Orchestrator Agent initiates a conversation with the user. It uses its conversational refinement capabilities to gradually elicit more details about the user's needs (e.g., target platform, key features, user base, existing tools).
+2.  **Research Phase**: Once sufficient detail is gathered, the Orchestrator delegates to the Research Agent. The Research Agent performs "Knowledge Research" on personal finance app features, "Deep Research" into market trends and user expectations, and "Best-in-Class Evaluation" for suitable tech stacks (e.g., comparing React Native vs. Flutter for mobile, or Django vs. Node.js for backend).
+3.  **Architectural Planning**: The Architect Planner Agent, collaborating with the Research Agent, synthesizes this information to produce a High-Level Plan, a preliminary PRD, and a technical specification. This includes breaking down the project into logical components (e.g., user authentication, transaction tracking, budgeting, reporting).
+4.  **Development Orchestration**: The Orchestrator then assigns tasks to the Front-end and Back-end Developer Agents.
+    *   The Front-end Agent might generate mockups and wireframes, which are rendered via E2B and presented to the user for feedback (e.g., a Streamlit or Next.js prototype).
+    *   The Back-end Agent proposes a database schema and API design.
+5.  **Iterative Refinement & Coding**: The user provides feedback on the prototypes, leading to back-and-forth modifications. The Orchestrator manages these iterations, directing the relevant agents (e.g., Front-end Agent for UI changes, Back-end Agent for API adjustments). The Coding Agent executes specific coding tasks under the direction of the developer agents.
+6.  **Monitoring & State Management**: Throughout this process, the Monitoring Agent tracks the progress of all tasks within their respective graphs, ensuring dependencies are met and alerting the Orchestrator to any issues or task completions. The system's state management ensures that context is preserved across turns and agent handoffs.
+7.  **Artifact Generation**: At various stages, the system generates tangible artifacts (e.g., detailed design documents, data analysis reports, mini-app prototypes, code snippets) that are downloadable and rendered to the front-end for user review and decision-making.
+
+This entire process is highly autonomous, with agents collaborating seamlessly, managing complex states, and leveraging the multi-layered memory system to ensure a coherent and efficient development workflow, ultimately leading to a ready-to-push knowledge base for hierarchical and sequential build steps.
+
+---
 ### The Conversational Flow:
 
 **User:** I want a solution for my weak English.
@@ -131,6 +214,5 @@ Of course. Here is a detailed, conversational example of how the highly autonomo
 
 This example illustrates the sophisticated and autonomous nature of the proposed system. The Orchestrator manages the overall conversation and workflow, while specialized agents, operating within their respective graphs, handle specific tasks. The Monitoring Agent provides transparency, and the layered memory system ensures that all information is captured and utilized effectively. The back-and-forth between the user and the system allows for continuous refinement and a truly personalized solution.
 
+---------------
 Knowing these are what we have already built you must consider build on these and refactor them on the way - do these gradually and I will test on front end as you build, you don't have to rush in one go
----------
-@__init__.py @chat.py @sidebar.py @__init__.py @main.py @__init__.py @code_agent.py @orchestrator_agent.py @design_agent.py @intelligent_orchestrator.py @research_agent.py @__init__.py @llm_service.py @e2b_service.py @__init__.py @file_tools.py @__init__.py @config.py @enhanced_models.py @models.py @__init__.py @code_graph.py @design_graph.py @intelligent_rag_graph.py @multi_agent_rag_graph.py @orchestration_graph.py @research_graph.py @.env @.env.example @.gitignore @pyproject.toml @INTELLIGENT_ORCHESTRATOR_SUMMARY.md @poetry.lock @README.md @TASKS.md @test_app_fix.py @/sentient-core @test_intelligent_orchestrator.py @/app @/ui @/core @/__pycache__ @/agents @/__pycache__ @/services @/__pycache__ @/tools @/dejavu-fonts-ttf-2.37 @/graphs @/__pycache__ @/store @/tests 
