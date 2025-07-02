@@ -1,30 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/theme-toggle';
+import SiteHeader from '@/components/site-header';
 import ChatInterface from '@/components/chat-interface';
 import TaskView from '@/components/task-view';
 import AgentsList from '@/components/agents-list';
 import { useAppContext } from '@/lib/context/app-context';
 
+  if (!mounted) {
+    return null; // Return null on server-side or first render
+  }
+  
+  return (
+    <header className="border-b">
+      <div className="container flex items-center justify-between py-4">
+        <h1 className="text-2xl font-bold">Sentient Core</h1>
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+        </div>
+      </div>
+    </header>
+  );
+}
+
 export default function Home() {
   const { activeWorkflow, setActiveWorkflow, resetSession } = useAppContext();
   const [activeTab, setActiveTab] = useState('chat');
+  const [mounted, setMounted] = useState(false);
+  
+  // Handle client-side mounting
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <header className="border-b">
-        <div className="container flex items-center justify-between py-4">
-          <h1 className="text-2xl font-bold">Sentient Core</h1>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
+            <SiteHeader />
 
       {/* Main content */}
       <main className="flex-1 container py-6">

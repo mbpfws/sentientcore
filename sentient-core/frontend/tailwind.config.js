@@ -6,6 +6,7 @@ module.exports = {
     './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
     './src/**/*.{ts,tsx}',
+    './**/*.{ts,tsx}',  // Add this to catch all TypeScript/TSX files in any directory
   ],
   prefix: "",
   theme: {
