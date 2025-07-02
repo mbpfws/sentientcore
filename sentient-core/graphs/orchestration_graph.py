@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from core.models import AppState, TaskStatus, ResearchState
+from core.models import AppState, TaskStatus, ResearchState, LogEntry
 from core.agents.orchestrator_agent import OrchestratorAgent
 from graphs.research_graph import research_app
 from core.services.llm_service import LLMService
@@ -12,6 +12,7 @@ def run_research_graph(state: AppState) -> AppState:
     """
     This node runs the separate research graph for a pending research task.
     """
+    state.logs.append(LogEntry(source="OrchestrationGraph", message="Entering research sub-graph..."))
     print("---ORCHESTRATION: RUNNING RESEARCH GRAPH---")
     
     # Find the pending research task
