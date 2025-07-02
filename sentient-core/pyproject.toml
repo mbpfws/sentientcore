@@ -4,7 +4,13 @@ version = "0.1.0"
 description = "A multi-agent RAG system for guided application development."
 authors = ["Sentient Core AI Developer <dev@sentientcore.ai>"]
 readme = "README.md"
-package-mode = false
+
+packages = [
+    { include = "core" },
+    { include = "graphs" },
+    { include = "app" },
+    { include = "tests" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
