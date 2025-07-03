@@ -669,6 +669,153 @@ class MemoryService:
         """Get memory service performance statistics"""
         return self.performance_stats.copy()
     
+    async def start(self):
+        """Start the memory service (async initialization)"""
+        # Vector service doesn't need explicit start
+        logger.info("MemoryService started")
+    
+    async def store_memory(self, layer: MemoryLayer, memory_type: MemoryType, 
+                          content: str, metadata: Dict[str, Any] = None, 
+                          tags: List[str] = None) -> str:
+        """Store memory with specified layer and type
+        
+        Args:
+            layer: Memory layer to store in
+            memory_type: Type of memory content
+            content: Content to store
+            metadata: Additional metadata
+            tags: Tags for categorization
+            
+        Returns:
+            Entry ID of stored memory
+        """
+        if metadata is None:
+            metadata = {}
+        if tags is None:
+            tags = []
+            
+        # Add memory type to metadata
+        metadata["memory_type"] = memory_type.value
+        metadata["tags"] = tags
+        
+        # Route to appropriate layer based on memory type and layer
+        layer_service = self.layers[layer]
+        
+        if layer == MemoryLayer.KNOWLEDGE_SYNTHESIS:
+            if memory_type == MemoryType.RESEARCH_FINDING:
+                return await layer_service.store_research_finding(
+                    content, metadata.get("source", "unknown"), 
+                    metadata.get("topic", "general"), metadata
+                )
+            else:
+                return await layer_service.store_technical_report(
+                    content, metadata.get("title", "Technical Report"), 
+                    metadata.get("technology", "general"), metadata
+                )
+        
+        elif layer == MemoryLayer.CONVERSATION_HISTORY:
+            if memory_type == MemoryType.CONVERSATION:
+                return await layer_service.store_user_interaction(
+                    metadata.get("user_input", ""), content, 
+                    metadata.get("agent_id", "unknown"), metadata
+                )
+            else:
+                return await layer_service.store_agent_decision(
+                    content, metadata.get("reasoning", ""), 
+                    metadata.get("agent_id", "unknown"), metadata
+                )
+        
+        elif layer == MemoryLayer.CODEBASE_KNOWLEDGE:
+            if memory_type == MemoryType.CODE_SNIPPET:
+                return await layer_service.store_generated_code(
+                    content, metadata.get("language", "unknown"), 
+                    metadata.get("purpose", "general"), metadata
+                )
+            else:
+                return await layer_service.store_code_pattern(
+                    content, metadata.get("description", ""), 
+                    metadata.get("use_case", "general"), metadata
+                )
+        
+        elif layer == MemoryLayer.STACK_DEPENDENCIES:
+            if memory_type == MemoryType.DEPENDENCY_INFO:
+                return await layer_service.store_library_documentation(
+                    metadata.get("library", "unknown"), content, 
+                    metadata.get("version", "latest"), metadata
+                )
+            else:
+                return await layer_service.store_technology_choice(
+                    metadata.get("technology", "unknown"), content, 
+                    metadata.get("alternatives", []), metadata
+                )
+        
+        raise ValueError(f"Unsupported memory type {memory_type} for layer {layer}")
+    
+    async def retrieve_memories(self, query: str, layer: MemoryLayer = None, 
+                               memory_type: MemoryType = None, limit: int = 10, 
+                               similarity_threshold: float = 0.7) -> List[Any]:
+        """Retrieve memories based on query and filters
+        
+        Args:
+            query: Search query
+            layer: Optional layer filter
+            memory_type: Optional memory type filter
+            limit: Maximum number of results
+            similarity_threshold: Minimum similarity score
+            
+        Returns:
+            List of memory entries
+        """
+        # Build metadata filter
+        metadata_filter = {}
+        if layer:
+            metadata_filter["layer"] = layer.value
+        if memory_type:
+            metadata_filter["memory_type"] = memory_type.value
+        
+        # Perform search
+        results = await self.vector_service.search(
+            query=query,
+            k=limit,
+            metadata_filter=metadata_filter if metadata_filter else None
+        )
+        
+        # Filter by similarity threshold and convert to memory objects
+        memories = []
+        for result in results:
+            if result.score >= similarity_threshold:
+                # Create memory object from search result
+                memory = type('Memory', (), {
+                    'id': result.document.id,
+                    'content': result.document.content,
+                    'layer': MemoryLayer(result.document.metadata.get('layer', 'knowledge_synthesis')),
+                    'memory_type': MemoryType(result.document.metadata.get('memory_type', 'documentation')),
+                    'metadata': result.document.metadata,
+                    'tags': result.document.metadata.get('tags', []),
+                    'created_at': datetime.fromisoformat(result.document.metadata.get('created_at', datetime.utcnow().isoformat())),
+                    'similarity_score': result.score
+                })()
+                memories.append(memory)
+        
+        self.performance_stats["searches_performed"] += 1
+        return memories
+    
+    async def get_memory_stats(self) -> Dict[str, Any]:
+        """Get comprehensive memory statistics"""
+        stats = {
+            "total_entries": 0,
+            "layers": {},
+            "performance": self.get_performance_stats()
+        }
+        
+        # Get statistics for each layer
+        for layer in MemoryLayer:
+            layer_stats = await self.get_layer_statistics(layer)
+            stats["layers"][layer.value] = layer_stats
+            stats["total_entries"] += layer_stats["total_entries"]
+        
+        return stats
+
     def close(self):
         """Close database connections"""
         if self.db:
