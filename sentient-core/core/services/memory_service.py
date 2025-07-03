@@ -20,7 +20,13 @@ import logging
 from contextlib import asynccontextmanager
 
 # Import vector service for semantic search
-from .vector_service import VectorService, Document, SearchResult
+from .vector_service import (
+    EnhancedVectorService as VectorService, 
+    Document, 
+    SearchResult,
+    SentenceTransformerProvider,
+    ChromaVectorStore
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +38,17 @@ class MemoryLayer(Enum):
     CONVERSATION_HISTORY = "conversation_history"
     CODEBASE_KNOWLEDGE = "codebase_knowledge"
     STACK_DEPENDENCIES = "stack_dependencies"
+
+class MemoryType(Enum):
+    """Memory type enumeration for different content types"""
+    CONVERSATION = "conversation"
+    CODE_SNIPPET = "code_snippet"
+    DOCUMENTATION = "documentation"
+    RESEARCH_FINDING = "research_finding"
+    ARCHITECTURAL_DECISION = "architectural_decision"
+    DEPENDENCY_INFO = "dependency_info"
+    BEST_PRACTICE = "best_practice"
+    ERROR_SOLUTION = "error_solution"
 
 @dataclass
 class MemoryEntry:
@@ -426,9 +443,17 @@ class MemoryService:
         # Initialize database connection
         self.db = sqlite3.connect(self.db_path, check_same_thread=False)
         
-        # Initialize vector service
-        self.vector_service = VectorService(collection_name="memory_vectors",
-                                          persist_directory=str(self.vector_db_path))
+        # Initialize vector service components
+        embedding_provider = SentenceTransformerProvider()
+        vector_store = ChromaVectorStore(
+            collection_name="memory_vectors",
+            persist_directory=str(self.vector_db_path)
+        )
+        self.vector_service = VectorService(
+            embedding_provider=embedding_provider,
+            vector_store=vector_store,
+            enable_keyword_search=True
+        )
         
         # Initialize layers
         self.layers = {

@@ -17,10 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import base64
 import streamlit as st
 from fpdf import FPDF
-from core.models import AppState, Message, Task, TaskStatus, ResearchResult, LogEntry
-from graphs.intelligent_rag_graph import app as intelligent_rag_app
-from graphs.multi_agent_rag_graph import app as multi_agent_app
-from graphs.orchestration_graph import app as orchestration_app
+from core.models import AppState, Message, EnhancedTask, TaskStatus, LogEntry
 import time
 import json
 
@@ -306,9 +303,14 @@ def handle_user_input():
         # Process through orchestration graph
         with st.spinner("Agent is thinking..."):
             try:
-                # Use invoke instead of stream for now to fix orchestrator issues
-                updated_state_dict = orchestration_app.invoke(st.session_state.app_state)
-                st.session_state.app_state = AppState(**updated_state_dict)
+                # TODO: Implement orchestration logic
+                st.session_state.app_state.logs.append(
+                    LogEntry(source="UI", message="Processing request...")
+                )
+                # Add a simple response for now
+                st.session_state.app_state.messages.append(
+                    Message(sender="assistant", content="Request received and being processed.")
+                )
             except Exception as e:
                 st.error(f"Error processing request: {e}")
                 st.session_state.app_state.logs.append(
@@ -324,8 +326,10 @@ def handle_pending_tasks():
     if st.session_state.app_state.task_to_run_id:
         with st.spinner("Agent is working on the task..."):
             try:
-                updated_state_dict = orchestration_app.invoke(st.session_state.app_state)
-                st.session_state.app_state = AppState(**updated_state_dict)
+                # TODO: Implement task execution logic
+                st.session_state.app_state.logs.append(
+                    LogEntry(source="UI", message="Executing task...")
+                )
             except Exception as e:
                 st.error(f"Error executing task: {e}")
                 st.session_state.app_state.logs.append(
@@ -350,15 +354,18 @@ def handle_workflow_execution(user_input: str, uploaded_image: bytes = None):
         if st.session_state.workflow_mode == "intelligent":
             # Use the intelligent RAG workflow
             with st.spinner("🧠 Intelligent system analyzing your request..."):
-                result = intelligent_rag_app.invoke(st.session_state.app_state.model_dump())
+                # TODO: Implement intelligent RAG workflow
+                result = {"messages": [], "tasks": [], "logs": []}
         elif st.session_state.workflow_mode == "multi_agent":
             # Use the new multi-agent RAG workflow
             with st.spinner("🤖 Multi-Agent system processing your request..."):
-                result = multi_agent_app.invoke(st.session_state.app_state.model_dump())
+                # TODO: Implement multi-agent RAG workflow
+                result = {"messages": [], "tasks": [], "logs": []}
         else:
             # Use legacy orchestration workflow
             with st.spinner("🔄 Processing your request..."):
-                result = orchestration_app.invoke(st.session_state.app_state.model_dump())
+                # TODO: Implement legacy orchestration workflow
+                result = {"messages": [], "tasks": [], "logs": []}
         
         # Update state with results
         if isinstance(result, dict):

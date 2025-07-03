@@ -13,7 +13,7 @@ if project_root not in sys.path:
 from core.services.memory_service import MemoryService, MemoryLayer, MemoryType
 from core.services.state_service import StateService, AgentStatus, WorkflowStatus
 from core.services.search_service import SearchService, SearchType, SearchQuery
-from core.services.vector_service import VectorService
+from core.services.vector_service import EnhancedVectorService as VectorService
 
 router = APIRouter(prefix="/core-services", tags=["core-services"])
 
@@ -455,7 +455,6 @@ async def initialize_services():
         # Initialize services
         if memory_service is None:
             memory_service = MemoryService()
-            await memory_service.start()
         
         if state_service is None:
             state_service = StateService()
@@ -465,7 +464,13 @@ async def initialize_services():
             search_service = SearchService()
         
         if vector_service is None:
-            vector_service = VectorService()
+            from core.services.vector_service import SentenceTransformerProvider, ChromaVectorStore
+            embedding_provider = SentenceTransformerProvider()
+            vector_store = ChromaVectorStore(
+                collection_name="sentient_vectors",
+                persist_directory="./vector_db"
+            )
+            vector_service = VectorService(embedding_provider=embedding_provider, vector_store=vector_store)
         
         return {
             "success": True,

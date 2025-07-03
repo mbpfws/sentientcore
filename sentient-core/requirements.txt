@@ -12,4 +12,5 @@ sentence-transformers
 tavily-python
 exa-py
 duckduckgo-search
-sqlite3
+numpy
+faiss-cpu

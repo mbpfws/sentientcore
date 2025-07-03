@@ -552,6 +552,15 @@ class EnhancedVectorService:
         
         return hybrid_results
 
+    async def search(self, query: str, k: int = 10, 
+                    metadata_filter: Optional[Dict[str, Any]] = None) -> List[SearchResult]:
+        """General search method that uses hybrid search by default."""
+        return await self.hybrid_search(query, k, metadata_filter=metadata_filter)
+
+    async def add_document(self, document: Document) -> None:
+        """Add a single document to the vector service."""
+        await self.add_documents([document])
+
     def _matches_filter(self, metadata: Dict[str, Any], filter_dict: Dict[str, Any]) -> bool:
         """Check if metadata matches the filter criteria."""
         for key, value in filter_dict.items():

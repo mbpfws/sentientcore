@@ -68,7 +68,7 @@ async def process_chat_message(chat_request: ChatRequest):
         mock_response = Message(
             sender="assistant",
             content=f"I received your message: '{message_text}'. The workflow system is currently being set up.",
-            created_at=time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
         )
         app_state.messages.append(mock_response)
         result = app_state
@@ -95,10 +95,10 @@ async def process_chat_message(chat_request: ChatRequest):
         if assistant_messages:
             last_message = assistant_messages[-1]
             response_message = MessageResponse(
-                id=last_message.id or f"msg_{int(time.time() * 1000)}",
+                id=f"msg_{int(time.time() * 1000)}",
                 content=last_message.content,
                 sender="assistant",
-                created_at=last_message.created_at or time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+                created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
             )
         else:
             # Fallback response if no assistant message found
@@ -106,7 +106,7 @@ async def process_chat_message(chat_request: ChatRequest):
                 id=f"msg_{int(time.time() * 1000)}",
                 content="I received your message but couldn't generate a response. Please try again.",
                 sender="assistant",
-                created_at=time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+                created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
             )
         
         return ApiResponse(data=response_message)
