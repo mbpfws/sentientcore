@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import ChatInterface from '@/components/chat-interface';
 import TaskView from '@/components/task-view';
 import AgentsList from '@/components/agents-list';
+import { LLMStream } from '@/components/llm-stream';
 import { useAppContext } from '@/lib/context/app-context';
 import ClientOnly from '@/components/client-only';
 
@@ -111,6 +112,7 @@ export default function Home() {
                     <TabsTrigger value="chat">Chat</TabsTrigger>
                     <TabsTrigger value="tasks">Tasks</TabsTrigger>
                     <TabsTrigger value="agents">Agents</TabsTrigger>
+                    <TabsTrigger value="llm">LLM Stream</TabsTrigger>
                   </TabsList>
                 </div>
 
@@ -124,6 +126,10 @@ export default function Home() {
 
                 <TabsContent value="agents">
                   <AgentsList />
+                </TabsContent>
+
+                <TabsContent value="llm">
+                  <LLMStream />
                 </TabsContent>
               </Tabs>
             </div>

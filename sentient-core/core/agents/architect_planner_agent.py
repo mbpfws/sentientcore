@@ -4,7 +4,7 @@ Synthesizes research and conversations into actionable plans.
 """
 
 from core.models import AppState, EnhancedTask, AgentType, LogEntry
-from core.services.llm_service import LLMService
+from core.services.llm_service import EnhancedLLMService
 from typing import Dict, Any
 
 class ArchitectPlannerAgent:
@@ -17,7 +17,7 @@ class ArchitectPlannerAgent:
     - Breaking down the high-level plan into detailed, buildable tasks.
     """
 
-    def __init__(self, llm_service: LLMService):
+    def __init__(self, llm_service: EnhancedLLMService):
         self.llm_service = llm_service
 
     def invoke(self, state: AppState) -> AppState:
@@ -32,4 +32,4 @@ class ArchitectPlannerAgent:
             message="Architect planning logic not yet implemented."
         ))
         
-        return state 
+        return state

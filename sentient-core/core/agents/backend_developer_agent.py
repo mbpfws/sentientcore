@@ -4,7 +4,7 @@ Handles all tasks related to server-side logic, databases, and APIs.
 """
 
 from core.models import AppState, EnhancedTask, AgentType, LogEntry
-from core.services.llm_service import LLMService
+from core.services.llm_service import EnhancedLLMService
 from typing import Dict, Any
 
 class BackendDeveloperAgent:
@@ -16,7 +16,7 @@ class BackendDeveloperAgent:
     - Implementing business logic and data processing.
     """
 
-    def __init__(self, llm_service: LLMService):
+    def __init__(self, llm_service: EnhancedLLMService):
         self.llm_service = llm_service
 
     def invoke(self, state: AppState) -> AppState:
@@ -31,4 +31,4 @@ class BackendDeveloperAgent:
             message="Back-end development logic not yet implemented."
         ))
         
-        return state 
+        return state

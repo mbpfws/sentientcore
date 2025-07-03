@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # AI Provider Keys
     GROQ_API_KEY: str
     GOOGLE_API_KEY: str
+    OPENAI_API_KEY: str
 
     # Agent & Sandbox Keys
     E2B_API_KEY: str

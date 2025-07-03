@@ -7,11 +7,11 @@ from langgraph.graph import StateGraph, END
 from core.models import AppState
 from core.agents.ultra_orchestrator import UltraOrchestrator
 from core.agents.monitoring_agent import MonitoringAgent
-from core.services.llm_service import LLMService
+from core.services.llm_service import EnhancedLLMService
 from typing import Dict, Any
 
 # Initialize services and core agents
-llm_service = LLMService()
+llm_service = EnhancedLLMService()
 ultra_orchestrator = UltraOrchestrator(llm_service)
 monitoring_agent = MonitoringAgent()
 
@@ -64,4 +64,4 @@ workflow.add_conditional_edges(
 
 
 # Compile the graph into a runnable application
-app = workflow.compile() 
+app = workflow.compile()

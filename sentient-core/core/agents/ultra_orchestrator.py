@@ -4,7 +4,7 @@ The master conductor of the multi-agent RAG system.
 """
 
 from core.models import AppState, AgentType, LogEntry, EnhancedTask, Message
-from core.services.llm_service import LLMService
+from core.services.llm_service import EnhancedLLMService
 from typing import Dict, Any, cast
 import json
 import re
@@ -19,7 +19,7 @@ class UltraOrchestrator:
     - Ensuring the final output is a cohesive, complete solution.
     """
 
-    def __init__(self, llm_service: LLMService):
+    def __init__(self, llm_service: EnhancedLLMService):
         self.llm_service = llm_service
 
     def _get_system_prompt(self):

@@ -18,7 +18,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from core.models import AppState, Message, Task, TaskStatus
 from core.agents.intelligent_orchestrator import IntelligentOrchestrator
-from core.services.llm_service import LLMService
+from core.services.llm_service import EnhancedLLMService
 from graphs.intelligent_rag_graph import intelligent_workflow
 import json
 
@@ -29,7 +29,7 @@ def test_intelligent_orchestrator():
     print("=" * 60)
     
     # Initialize components
-    llm_service = LLMService()
+    llm_service = EnhancedLLMService()
     orchestrator = IntelligentOrchestrator(llm_service)
     
     # Test scenarios
@@ -171,7 +171,7 @@ def test_language_detection():
     print("\nTesting Language Detection...")
     print("=" * 60)
     
-    llm_service = LLMService()
+    llm_service = EnhancedLLMService()
     orchestrator = IntelligentOrchestrator(llm_service)
     
     language_tests = [

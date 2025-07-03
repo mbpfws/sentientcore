@@ -9,7 +9,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core.models import AgentType, EnhancedTask, TaskStatus
-from core.agents.ultra_orchestrator import UltraOrchestratorAgent
+from core.agents.ultra_orchestrator import UltraOrchestrator
 from core.agents.research_agent import ResearchAgent
 from core.agents.architect_planner_agent import ArchitectPlannerAgent
 from core.agents.frontend_developer_agent import FrontendDeveloperAgent

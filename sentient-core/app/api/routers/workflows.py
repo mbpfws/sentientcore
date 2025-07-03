@@ -9,9 +9,9 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core.models import AppState, TaskStatus, EnhancedTask, LogEntry
-from graphs.intelligent_rag_graph import app as intelligent_rag_app
-from graphs.multi_agent_rag_graph import app as multi_agent_app
-from graphs.orchestration_graph import app as orchestration_app
+# from graphs.intelligent_rag_graph import app as intelligent_rag_app
+# from graphs.multi_agent_rag_graph import app as multi_agent_app
+# from graphs.orchestration_graph import app as orchestration_app
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
@@ -28,20 +28,23 @@ async def list_workflows():
 async def execute_workflow(workflow_id: str, app_state: AppState):
     """Execute the specified workflow with the provided application state"""
     try:
-        if workflow_id == "intelligent":
-            # Use the intelligent RAG workflow
-            result = intelligent_rag_app.invoke(app_state.model_dump())
-        elif workflow_id == "multi_agent":
-            # Use the multi-agent RAG workflow
-            result = multi_agent_app.invoke(app_state.model_dump())
-        elif workflow_id == "legacy":
-            # Use legacy orchestration workflow
-            result = orchestration_app.invoke(app_state.model_dump())
-        else:
-            raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
+        # Temporarily disabled - missing graph modules
+        raise HTTPException(status_code=501, detail=f"Workflow execution temporarily disabled - missing graph modules")
         
-        # Return the updated state
-        return result
+        # if workflow_id == "intelligent":
+        #     # Use the intelligent RAG workflow
+        #     result = intelligent_rag_app.invoke(app_state.model_dump())
+        # elif workflow_id == "multi_agent":
+        #     # Use the multi-agent RAG workflow
+        #     result = multi_agent_app.invoke(app_state.model_dump())
+        # elif workflow_id == "legacy":
+        #     # Use legacy orchestration workflow
+        #     result = orchestration_app.invoke(app_state.model_dump())
+        # else:
+        #     raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
+        # 
+        # # Return the updated state
+        # return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Workflow execution error: {str(e)}")
 
@@ -49,13 +52,16 @@ async def execute_workflow(workflow_id: str, app_state: AppState):
 async def execute_task(task_id: str, app_state: AppState):
     """Execute a specific task within the workflow"""
     try:
-        # Set the task to execute
-        app_state.task_to_run_id = task_id
+        # Temporarily disabled - missing graph modules
+        raise HTTPException(status_code=501, detail=f"Task execution temporarily disabled - missing graph modules")
         
-        # Execute through orchestration graph
-        result = orchestration_app.invoke(app_state.model_dump())
-        
-        return result
+        # # Set the task to execute
+        # app_state.task_to_run_id = task_id
+        # 
+        # # Execute through orchestration graph
+        # result = orchestration_app.invoke(app_state.model_dump())
+        # 
+        # return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Task execution error: {str(e)}")
 

@@ -1,7 +1,7 @@
 from langgraph.graph import StateGraph, END
 from core.models import ResearchState
 from core.agents.research_agent import ResearchAgent
-from core.services.llm_service import LLMService
+from core.services.llm_service import EnhancedLLMService
 
 def should_continue(state: ResearchState) -> str:
     """
@@ -21,7 +21,7 @@ def execute_search_with_streaming(state: ResearchState) -> ResearchState:
     return research_agent.execute_search(state, stream_callback)
 
 # Initialize services and agents
-llm_service = LLMService()
+llm_service = EnhancedLLMService()
 research_agent = ResearchAgent(llm_service)
 
 # Define the graph

@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+langchain
+langgraph
+groq
+google-generativeai
+pyautogen

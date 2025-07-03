@@ -1,5 +1,5 @@
-from core.models import Task, AppState, TaskStatus, ResearchState, ResearchStep, LogEntry
-from core.services.llm_service import LLMService
+from core.models import EnhancedTask, AppState, TaskStatus, ResearchState, ResearchStep, LogEntry
+from core.services.llm_service import EnhancedLLMService
 import json
 import re
 from typing import Dict, List, Tuple
@@ -19,7 +19,7 @@ class ResearchAgent:
     3. Best-in-Class Research: Comparative analysis to find optimal solutions
     """
 
-    def __init__(self, llm_service: LLMService):
+    def __init__(self, llm_service: EnhancedLLMService):
         self.llm_service = llm_service
         
         # Model selection based on research complexity

@@ -100,10 +100,19 @@ class LogEntry(BaseModel):
     source: str  # e.g., "UltraOrchestrator", "ResearchGraph", "UI"
     message: str
 
+class ResearchStep(BaseModel):
+    """Represents a single step in a research process."""
+    query: str
+    status: str = "pending"
+    result: Optional[str] = None
+    sources: List[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.now)
+    completed_at: Optional[datetime] = None
+
 class ResearchState(BaseModel):
     """Manages the state of a multi-step research task for the research sub-graph."""
     original_query: str
-    steps: list = Field(default_factory=list) # Using list for now to avoid circular deps
+    steps: List[ResearchStep] = Field(default_factory=list)
     logs: List[LogEntry] = Field(default_factory=list)
     final_report: Optional[str] = None
     continual_search_suggestions: List[str] = Field(default_factory=list)
@@ -136,4 +145,4 @@ class AppState(BaseModel):
     orchestrator_decision: Optional[Dict[str, Any]] = None
 
     class Config:
-        arbitrary_types_allowed = True 
+        arbitrary_types_allowed = True

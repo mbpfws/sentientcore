@@ -4,7 +4,7 @@ Handles all tasks related to UI/UX design and front-end implementation.
 """
 
 from core.models import AppState, EnhancedTask, AgentType, LogEntry
-from core.services.llm_service import LLMService
+from core.services.llm_service import EnhancedLLMService
 from typing import Dict, Any
 
 class FrontendDeveloperAgent:
@@ -16,7 +16,7 @@ class FrontendDeveloperAgent:
     - Collaborating with the backend developer to integrate APIs.
     """
 
-    def __init__(self, llm_service: LLMService):
+    def __init__(self, llm_service: EnhancedLLMService):
         self.llm_service = llm_service
 
     def invoke(self, state: AppState) -> AppState:
@@ -31,4 +31,4 @@ class FrontendDeveloperAgent:
             message="Front-end development logic not yet implemented."
         ))
         
-        return state 
+        return state
