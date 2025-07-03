@@ -7,3 +7,9 @@ langgraph
 groq
 google-generativeai
 pyautogen
+chromadb
+sentence-transformers
+tavily-python
+exa-py
+duckduckgo-search
+sqlite3

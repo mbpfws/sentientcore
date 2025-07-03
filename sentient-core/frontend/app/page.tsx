@@ -9,6 +9,8 @@ import ChatInterface from '@/components/chat-interface';
 import TaskView from '@/components/task-view';
 import AgentsList from '@/components/agents-list';
 import { LLMStream } from '@/components/llm-stream';
+import CoreServicesDashboard from '@/components/core-services-dashboard';
+import OrchestratorInterface from '@/components/orchestrator-interface';
 import { useAppContext } from '@/lib/context/app-context';
 import ClientOnly from '@/components/client-only';
 
@@ -106,15 +108,25 @@ export default function Home() {
 
             {/* Main area */}
             <div className="lg:col-span-3">
-              <Tabs defaultValue="chat" value={activeTab} onValueChange={setActiveTab}>
+              <Tabs defaultValue="orchestrator" value={activeTab} onValueChange={setActiveTab}>
                 <div className="flex justify-between items-center mb-4">
                   <TabsList>
+                    <TabsTrigger value="orchestrator">Orchestrator</TabsTrigger>
+                    <TabsTrigger value="core-services">Core Services</TabsTrigger>
                     <TabsTrigger value="chat">Chat</TabsTrigger>
                     <TabsTrigger value="tasks">Tasks</TabsTrigger>
                     <TabsTrigger value="agents">Agents</TabsTrigger>
                     <TabsTrigger value="llm">LLM Stream</TabsTrigger>
                   </TabsList>
                 </div>
+
+                <TabsContent value="orchestrator" className="space-y-4">
+                  <OrchestratorInterface />
+                </TabsContent>
+
+                <TabsContent value="core-services" className="space-y-4">
+                  <CoreServicesDashboard />
+                </TabsContent>
 
                 <TabsContent value="chat" className="space-y-4">
                   <ChatInterface />
