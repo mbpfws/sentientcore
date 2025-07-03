@@ -373,7 +373,7 @@ def handle_workflow_execution(user_input: str, uploaded_image: bytes = None):
             if "messages" in result:
                 st.session_state.app_state.messages = [Message(**msg) for msg in result["messages"]]
             if "tasks" in result:
-                st.session_state.app_state.tasks = [Task(**task) for task in result["tasks"]]
+                st.session_state.app_state.tasks = [EnhancedTask(**task) for task in result["tasks"]]
             if "logs" in result:
                 st.session_state.app_state.logs = [LogEntry(**log) for log in result["logs"]]
         

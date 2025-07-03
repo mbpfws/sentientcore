@@ -16,7 +16,7 @@ load_dotenv()
 # Add the project root to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from core.models import AppState, Message, Task, TaskStatus
+from core.models import AppState, Message, EnhancedTask, TaskStatus
 from core.agents.intelligent_orchestrator import IntelligentOrchestrator
 from core.services.llm_service import EnhancedLLMService
 from graphs.intelligent_rag_graph import intelligent_workflow
@@ -91,11 +91,11 @@ def test_intelligent_orchestrator():
             else:
                 print(f"FAIL: Expected {scenario['expected_decision']}, got {decision}")
             
-            # Show task breakdown if created
+            # Show created tasks
             if "task_breakdown" in decision_data and decision_data["task_breakdown"]:
                 print(f"Tasks created: {len(decision_data['task_breakdown'])}")
-                for task in decision_data["task_breakdown"]:
-                    print(f"   - {task.get('title', 'Untitled')} ({task.get('agent_type', 'unknown')})")
+                for enhanced_task in decision_data["task_breakdown"]:
+                    print(f"   - {enhanced_task.get('title', 'Untitled')} ({enhanced_task.get('agent_type', 'unknown')})")
             
             # Show follow-up questions if any
             if "follow_up_questions" in decision_data and decision_data["follow_up_questions"]:
@@ -147,15 +147,15 @@ def test_full_workflow():
         # Show created tasks
         if updated_state.tasks:
             print("\n📋 Created Tasks:")
-            for task in updated_state.tasks:
-                status_emoji = {"pending": "⏳", "in_progress": "🔄", "completed": "✅"}.get(task.status, "❓")
-                print(f"   {status_emoji} {task.description[:100]}... ({task.agent})")
+            for enhanced_task in updated_state.tasks:
+                status_emoji = {"pending": "⏳", "in_progress": "🔄", "completed": "✅"}.get(enhanced_task.status, "❓")
+                print(f"   {status_emoji} {enhanced_task.description[:100]}... ({enhanced_task.agent})")
         
         # Show recent logs
         if updated_state.logs:
             print("\n📊 Recent Logs:")
-            for log in updated_state.logs[-3:]:
-                print(f"   [{log.source}] {log.message}")
+            for log_entry in updated_state.logs[-3:]:
+                print(f"   [{log_entry.source}] {log_entry.message}")
                 
         return True
         
