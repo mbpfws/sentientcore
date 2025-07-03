@@ -696,7 +696,8 @@ class MemoryService:
             
         # Add memory type to metadata
         metadata["memory_type"] = memory_type.value
-        metadata["tags"] = tags
+        # Convert tags list to comma-separated string for ChromaDB compatibility
+        metadata["tags"] = ",".join(tags) if tags else ""
         
         # Route to appropriate layer based on memory type and layer
         layer_service = self.layers[layer]
@@ -791,7 +792,7 @@ class MemoryService:
                     'layer': MemoryLayer(result.document.metadata.get('layer', 'knowledge_synthesis')),
                     'memory_type': MemoryType(result.document.metadata.get('memory_type', 'documentation')),
                     'metadata': result.document.metadata,
-                    'tags': result.document.metadata.get('tags', []),
+                    'tags': result.document.metadata.get('tags', '').split(',') if result.document.metadata.get('tags') else [],
                     'created_at': datetime.fromisoformat(result.document.metadata.get('created_at', datetime.utcnow().isoformat())),
                     'similarity_score': result.score
                 })()
