@@ -1,40 +1,73 @@
 #!/usr/bin/env python3
-"""
-Test script to check MemoryService import in FastAPI context
-"""
 
-import os
 import sys
+import os
+import asyncio
+import uvicorn
+from fastapi.testclient import TestClient
 
-# Mimic the same path setup as in the FastAPI router
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "app", "api", "routers", "../../.."))
-print(f"Project root from FastAPI context: {project_root}")
+# Add project root to path
+project_root = os.path.abspath(os.path.dirname(__file__))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-print("Python path:")
-for i, path in enumerate(sys.path):
-    print(f"  {i}: {path}")
+# Import the FastAPI app
+from app.api.app import app
 
-try:
-    from core.services.memory_service import MemoryService, MemoryLayer, MemoryType
-    print(f"\n✅ Successfully imported MemoryService from FastAPI context")
-    print(f"MemoryService class: {MemoryService}")
-    print(f"MemoryService module: {MemoryService.__module__}")
-    print(f"MemoryService file: {MemoryService.__module__.__file__ if hasattr(MemoryService.__module__, '__file__') else 'N/A'}")
+def test_memory_endpoint_with_testclient():
+    """Test memory endpoint using FastAPI TestClient"""
+    print("=== Testing Memory Endpoint with TestClient ===")
     
-    # Create instance and check for store_memory method
-    memory_service = MemoryService()
-    print(f"\n✅ Successfully created MemoryService instance")
+    client = TestClient(app)
     
-    if hasattr(memory_service, 'store_memory'):
-        print(f"✅ store_memory method exists")
-        print(f"Method: {memory_service.store_memory}")
-    else:
-        print(f"❌ store_memory method does NOT exist")
-        print(f"Available methods: {[method for method in dir(memory_service) if not method.startswith('_')]}")
+    # Test payload
+    payload = {
+        "layer": "knowledge_synthesis",
+        "memory_type": "research_finding",
+        "content": "Test memory content for debugging",
+        "metadata": {
+            "source": "test_script",
+            "topic": "debugging"
+        },
+        "tags": ["test", "debug"]
+    }
+    
+    print(f"Testing endpoint: /api/core-services/memory/store")
+    print(f"Payload: {payload}")
+    
+    try:
+        # Make the request
+        response = client.post("/api/core-services/memory/store", json=payload)
         
-except Exception as e:
-    print(f"❌ Error importing MemoryService: {e}")
-    import traceback
-    traceback.print_exc()
+        print(f"Status Code: {response.status_code}")
+        print(f"Response Headers: {dict(response.headers)}")
+        
+        if response.status_code == 200:
+            print(f"Success Response: {response.json()}")
+        else:
+            print(f"Error Response: {response.json()}")
+            
+    except Exception as e:
+        print(f"Exception during request: {e}")
+        import traceback
+        traceback.print_exc()
+
+def test_direct_import():
+    """Test direct import of MemoryService in the same environment"""
+    print("\n=== Testing Direct Import in Same Environment ===")
+    
+    try:
+        from core.services.memory_service import MemoryService
+        service = MemoryService()
+        print(f"Direct import successful: {service}")
+        print(f"Has store_memory: {hasattr(service, 'store_memory')}")
+        if hasattr(service, 'store_memory'):
+            print(f"store_memory method: {getattr(service, 'store_memory')}")
+    except Exception as e:
+        print(f"Direct import failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    test_direct_import()
+    test_memory_endpoint_with_testclient()
