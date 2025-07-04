@@ -18,8 +18,21 @@ import base64
 import streamlit as st
 from fpdf import FPDF
 from core.models import AppState, Message, EnhancedTask, TaskStatus, LogEntry
+from core.orchestration import (
+    initialize_workflow_orchestrator,
+    get_workflow_orchestrator,
+    shutdown_workflow_orchestrator
+)
+from core.services.state_service import StateService
+from core.services.enhanced_llm_service import EnhancedLLMService
 import time
 import json
+import asyncio
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def create_pdf(text: str) -> bytes:
     """Creates a PDF file from a string of text using a Unicode font."""
@@ -43,6 +56,32 @@ def create_pdf(text: str) -> bytes:
         st.error(f"PDF generation error: {str(e)}")
         return b""
 
+async def initialize_services():
+    """Initialize core services asynchronously."""
+    try:
+        # Initialize state service
+        if "state_service" not in st.session_state:
+            st.session_state.state_service = StateService()
+            await st.session_state.state_service.initialize()
+        
+        # Initialize LLM service
+        if "llm_service" not in st.session_state:
+            st.session_state.llm_service = EnhancedLLMService()
+            await st.session_state.llm_service.initialize()
+        
+        # Initialize workflow orchestrator
+        if "workflow_orchestrator" not in st.session_state:
+            st.session_state.workflow_orchestrator = await initialize_workflow_orchestrator(
+                st.session_state.state_service,
+                st.session_state.llm_service
+            )
+        
+        return True
+    except Exception as e:
+        logger.error(f"Failed to initialize services: {e}")
+        st.error(f"Failed to initialize system services: {e}")
+        return False
+
 def initialize_session_state():
     """Initialize all session state variables."""
     if "app_state" not in st.session_state:
@@ -53,6 +92,14 @@ def initialize_session_state():
         st.session_state.show_step_details = True
     if "show_raw_output" not in st.session_state:
         st.session_state.show_raw_output = False
+    if "research_mode" not in st.session_state:
+        st.session_state.research_mode = None
+    if "search_streams" not in st.session_state:
+        st.session_state.search_streams = []
+    if "show_raw_searches" not in st.session_state:
+        st.session_state.show_raw_searches = False
+    if "services_initialized" not in st.session_state:
+        st.session_state.services_initialized = False
 
 def render_sidebar():
     """Render the sidebar with controls and logs."""
@@ -268,7 +315,7 @@ def render_raw_search_toggle():
                     if i < len(st.session_state.search_streams) - 1:
                         st.markdown("---")
 
-def handle_user_input():
+async def handle_user_input():
     """Handle user input and process it through the orchestration graph."""
     # Check for new prompts from chat input or follow-up clicks
     prompt = st.chat_input("What do you want to build today?")
@@ -296,6 +343,14 @@ def handle_user_input():
             mode_instruction = research_mode_text.get(st.session_state.research_mode, "")
             prompt = f"{mode_instruction}: {prompt}"
         
+        # Ensure services are initialized
+        if not st.session_state.services_initialized:
+            with st.spinner("Initializing system services..."):
+                success = await initialize_services()
+                if not success:
+                    return
+                st.session_state.services_initialized = True
+        
         # Add user message to state
         st.session_state.app_state.messages.append(Message(sender="user", content=prompt, image=image_data))
         st.session_state.app_state.image = image_data
@@ -303,15 +358,49 @@ def handle_user_input():
         # Process through orchestration graph
         with st.spinner("Agent is thinking..."):
             try:
-                # TODO: Implement orchestration logic
-                st.session_state.app_state.logs.append(
-                    LogEntry(source="UI", message="Processing request...")
+                # Get the workflow orchestrator
+                orchestrator = get_workflow_orchestrator()
+                if not orchestrator:
+                    st.error("Workflow orchestrator not available")
+                    return
+                
+                # Process through orchestrator
+                result = await orchestrator.execute_workflow(
+                    user_input=prompt,
+                    workflow_mode=st.session_state.workflow_mode,
+                    research_mode=st.session_state.research_mode,
+                    image_data=image_data
                 )
-                # Add a simple response for now
+                
+                # Add response message
+                response_content = result.get("response", "Request processed successfully.")
                 st.session_state.app_state.messages.append(
-                    Message(sender="assistant", content="Request received and being processed.")
+                    Message(sender="assistant", content=response_content)
                 )
+                
+                # Add tasks if any were created
+                if "tasks" in result:
+                    for task_data in result["tasks"]:
+                        task = EnhancedTask(
+                            id=task_data.get("id", f"task_{len(st.session_state.app_state.tasks) + 1}"),
+                            description=task_data.get("description", "Task"),
+                            status=TaskStatus(task_data.get("status", "pending")),
+                            agent=task_data.get("agent", "orchestrator"),
+                            result=task_data.get("result")
+                        )
+                        st.session_state.app_state.tasks.append(task)
+                
+                # Add log entries if any
+                if "logs" in result:
+                    for log_data in result["logs"]:
+                        log_entry = LogEntry(
+                            source=log_data.get("source", "orchestrator"),
+                            message=log_data.get("message", "")
+                        )
+                        st.session_state.app_state.logs.append(log_entry)
+                        
             except Exception as e:
+                logger.error(f"Error processing request: {e}")
                 st.error(f"Error processing request: {e}")
                 st.session_state.app_state.logs.append(
                     LogEntry(source="UI", message=f"Error: {e}")
@@ -338,9 +427,17 @@ def handle_pending_tasks():
         st.session_state.app_state.task_to_run_id = None
         st.rerun()
 
-def handle_workflow_execution(user_input: str, uploaded_image: bytes = None):
+async def handle_workflow_execution(user_input: str, uploaded_image: bytes = None):
     """Execute the appropriate workflow based on user selection."""
     try:
+        # Ensure services are initialized
+        if not st.session_state.services_initialized:
+            with st.spinner("Initializing system services..."):
+                success = await initialize_services()
+                if not success:
+                    return
+                st.session_state.services_initialized = True
+        
         # Add user message to state
         st.session_state.app_state.messages.append(
             Message(sender="user", content=user_input, image=uploaded_image)
@@ -350,38 +447,54 @@ def handle_workflow_execution(user_input: str, uploaded_image: bytes = None):
         if uploaded_image:
             st.session_state.app_state.image = uploaded_image
         
-        # Choose workflow based on mode
-        if st.session_state.workflow_mode == "intelligent":
-            # Use the intelligent RAG workflow
-            with st.spinner("🧠 Intelligent system analyzing your request..."):
-                # TODO: Implement intelligent RAG workflow
-                result = {"messages": [], "tasks": [], "logs": []}
-        elif st.session_state.workflow_mode == "multi_agent":
-            # Use the new multi-agent RAG workflow
-            with st.spinner("🤖 Multi-Agent system processing your request..."):
-                # TODO: Implement multi-agent RAG workflow
-                result = {"messages": [], "tasks": [], "logs": []}
-        else:
-            # Use legacy orchestration workflow
-            with st.spinner("🔄 Processing your request..."):
-                # TODO: Implement legacy orchestration workflow
-                result = {"messages": [], "tasks": [], "logs": []}
+        # Get the workflow orchestrator
+        orchestrator = get_workflow_orchestrator()
+        if not orchestrator:
+            st.error("Workflow orchestrator not available")
+            return
         
-        # Update state with results
-        if isinstance(result, dict):
-            # Update the app state with the new data
-            if "messages" in result:
-                st.session_state.app_state.messages = [Message(**msg) for msg in result["messages"]]
-            if "tasks" in result:
-                st.session_state.app_state.tasks = [EnhancedTask(**task) for task in result["tasks"]]
-            if "logs" in result:
-                st.session_state.app_state.logs = [LogEntry(**log) for log in result["logs"]]
+        # Process through orchestrator
+        with st.spinner(f"Processing with {st.session_state.workflow_mode} workflow..."):
+            result = await orchestrator.execute_workflow(
+                user_input=user_input,
+                workflow_mode=st.session_state.workflow_mode,
+                research_mode=st.session_state.research_mode,
+                image_data=uploaded_image
+            )
+        
+        # Add response message
+        response_content = result.get("response", "Request processed successfully.")
+        st.session_state.app_state.messages.append(
+            Message(sender="assistant", content=response_content)
+        )
+        
+        # Add tasks if any were created
+        if "tasks" in result:
+            for task_data in result["tasks"]:
+                task = EnhancedTask(
+                    id=task_data.get("id", f"task_{len(st.session_state.app_state.tasks) + 1}"),
+                    description=task_data.get("description", "Task"),
+                    status=TaskStatus(task_data.get("status", "pending")),
+                    agent=task_data.get("agent", "orchestrator"),
+                    result=task_data.get("result")
+                )
+                st.session_state.app_state.tasks.append(task)
+        
+        # Add log entries if any
+        if "logs" in result:
+            for log_data in result["logs"]:
+                log_entry = LogEntry(
+                    source=log_data.get("source", "orchestrator"),
+                    message=log_data.get("message", "")
+                )
+                st.session_state.app_state.logs.append(log_entry)
         
         # Clear image after processing
         st.session_state.app_state.image = None
         
     except Exception as e:
         error_msg = f"Workflow execution error: {str(e)}"
+        logger.error(error_msg)
         st.error(error_msg)
         st.session_state.app_state.logs.append(
             LogEntry(source="UI", message=error_msg)
