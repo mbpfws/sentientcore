@@ -164,7 +164,15 @@ def render_sidebar():
         
         # Reset button
         if st.button("🔄 Reset Session", type="secondary"):
-            st.session_state.app_state = AppState()
+            # Cleanup services first
+            cleanup_services()
+            
+            # Clear all session state
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            
+            # Reinitialize basic session state
+            initialize_session_state()
             st.rerun()
         st.header("Control Panel")
 
@@ -551,12 +559,20 @@ def render_executable_tasks():
                         help=f"Execute this {agent_type} task"
                     ):
                         # Execute the task
-                        execute_single_task(task.id)
-                        st.rerun()
+                        try:
+                            import asyncio
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            loop.run_until_complete(execute_single_task(task.id))
+                            loop.close()
+                            st.rerun()
+                        except Exception as e:
+                            logger.error(f"Error executing task: {e}")
+                            st.error(f"Error executing task: {e}")
                 
                 st.divider()
 
-def execute_single_task(task_id: str):
+async def execute_single_task(task_id: str):
     """Execute a single task by ID."""
     # Find the task
     task = None
@@ -566,19 +582,52 @@ def execute_single_task(task_id: str):
             break
     
     if task:
-        # Mark task as in progress
-        task.status = TaskStatus.IN_PROGRESS
-        
-        # Add a message about task execution
-        st.session_state.app_state.messages.append(
-            Message(
-                sender="assistant",
-                content=f"⚡ Executing task: {task.description}"
+        try:
+            # Ensure services are initialized
+            if not st.session_state.services_initialized:
+                st.error("Services not initialized. Please refresh the page.")
+                return
+            
+            # Mark task as in progress
+            task.status = TaskStatus.IN_PROGRESS
+            
+            # Add a message about task execution
+            st.session_state.app_state.messages.append(
+                Message(
+                    sender="assistant",
+                    content=f"⚡ Executing task: {task.description}"
+                )
             )
-        )
-        
-        # Execute the workflow to process this task
-        handle_workflow_execution(f"Execute task: {task.description}")
+            
+            # Get the workflow orchestrator
+            orchestrator = get_workflow_orchestrator()
+            if not orchestrator:
+                st.error("Workflow orchestrator not available")
+                task.status = TaskStatus.FAILED
+                return
+            
+            # Execute task through orchestrator
+            with st.spinner(f"Executing {task.description}..."):
+                result = await orchestrator.execute_task(
+                    task_id=task.id,
+                    task_description=task.description,
+                    agent_source=getattr(task, 'agent', 'unknown')
+                )
+                
+                if result.get("success", False):
+                    task.result = result.get("result", "Task completed successfully")
+                    task.status = TaskStatus.COMPLETED
+                    st.success(f"Task completed: {task.description}")
+                else:
+                    task.result = result.get("error", "Task execution failed")
+                    task.status = TaskStatus.FAILED
+                    st.error(f"Task failed: {task.result}")
+            
+        except Exception as e:
+            logger.error(f"Error executing task {task.id}: {e}")
+            task.status = TaskStatus.FAILED
+            task.result = f"Task failed: {str(e)}"
+            st.error(f"Task failed: {e}")
 
 def render_workflow_status():
     """Render current workflow status and phase information."""
@@ -624,6 +673,26 @@ def main():
     # Initialize session state
     initialize_session_state()
     
+    # Initialize services if not already done
+    if not st.session_state.services_initialized:
+        try:
+            # Run async initialization in a sync context
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            success = loop.run_until_complete(initialize_services())
+            loop.close()
+            
+            if success:
+                st.session_state.services_initialized = True
+            else:
+                st.error("Failed to initialize system services. Please refresh the page.")
+                return
+        except Exception as e:
+            logger.error(f"Error initializing services: {e}")
+            st.error(f"Error initializing services: {e}")
+            return
+    
     # Render sidebar
     render_sidebar()
     
@@ -667,14 +736,62 @@ def main():
     
     # Chat input
     if prompt := st.chat_input("Describe what you want to build or research..."):
-        handle_workflow_execution(prompt, uploaded_image)
-        st.rerun()
+        try:
+            # Run async workflow execution in a sync context
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(handle_workflow_execution(prompt, uploaded_image))
+            loop.close()
+            st.rerun()
+        except Exception as e:
+            logger.error(f"Error handling user input: {e}")
+            st.error(f"Error processing your request: {e}")
     
     # Handle follow-up questions from session state
     if hasattr(st.session_state, 'new_prompt') and st.session_state.new_prompt:
-        handle_workflow_execution(st.session_state.new_prompt)
-        st.session_state.new_prompt = None
-        st.rerun()
+        try:
+            # Run async workflow execution in a sync context
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(handle_workflow_execution(st.session_state.new_prompt))
+            loop.close()
+            st.session_state.new_prompt = None
+            st.rerun()
+        except Exception as e:
+            logger.error(f"Error handling follow-up prompt: {e}")
+            st.error(f"Error processing follow-up request: {e}")
+
+def cleanup_services():
+    """Cleanup function to properly shutdown services."""
+    try:
+        if "workflow_orchestrator" in st.session_state:
+            # Shutdown workflow orchestrator
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(shutdown_workflow_orchestrator())
+            loop.close()
+            
+        # Clear service references
+        for key in ["state_service", "llm_service", "workflow_orchestrator"]:
+            if key in st.session_state:
+                del st.session_state[key]
+                
+        st.session_state.services_initialized = False
+        logger.info("Services cleaned up successfully")
+        
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("Application interrupted by user")
+        cleanup_services()
+    except Exception as e:
+        logger.error(f"Application error: {e}")
+        cleanup_services()
+        raise

@@ -316,6 +316,85 @@ class AgentSystemIntegration:
                 }]
             }
     
+    async def execute_agent_task(self, 
+                               agent_name: str, 
+                               task_description: str, 
+                               context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Execute a task through a specific agent
+        
+        Args:
+            agent_name: Name of the agent to execute the task
+            task_description: Description of the task to execute
+            context: Additional context for the task
+            
+        Returns:
+            Dictionary with success status, result, and any errors
+        """
+        if not self.running:
+            logger.error("Agent system not running")
+            return {"success": False, "error": "Agent system not running"}
+        
+        try:
+            # Get the specified agent
+            agent = self.agents.get(agent_name)
+            if not agent:
+                logger.error(f"Agent '{agent_name}' not found")
+                return {"success": False, "error": f"Agent '{agent_name}' not found"}
+            
+            logger.info(f"Executing task through {agent_name}: {task_description}")
+            
+            # Handle UltraOrchestrator differently (it uses invoke method)
+            if agent_name == "orchestrator" and hasattr(agent, 'invoke'):
+                # Create a minimal AppState for the orchestrator
+                from ..models import AppState, Message
+                app_state = AppState(
+                    messages=[Message(sender="user", content=task_description)],
+                    tasks=[],
+                    logs=[]
+                )
+                result = await agent.invoke(app_state)
+                return {
+                    "success": True,
+                    "result": result,
+                    "agent_name": agent_name
+                }
+            
+            # For other agents that inherit from BaseAgent
+            if hasattr(agent, 'process_task'):
+                # Create an EnhancedTask object
+                task_id = context.get("task_id", f"task_{datetime.utcnow().timestamp()}")
+                enhanced_task = EnhancedTask(
+                    id=task_id,
+                    description=task_description,
+                    agent=agent_name,
+                    status=TaskStatus.PENDING
+                )
+                
+                # Execute the task through the agent
+                result = await agent.process_task(enhanced_task)
+                
+                return {
+                    "success": True,
+                    "result": result if isinstance(result, str) else str(result),
+                    "agent_name": agent_name
+                }
+            else:
+                # Fallback for agents without process_task method
+                logger.error(f"Agent '{agent_name}' does not have a process_task method")
+                return {
+                    "success": False,
+                    "error": f"Agent '{agent_name}' does not support task execution",
+                    "agent_name": agent_name
+                }
+            
+        except Exception as e:
+            logger.error(f"Error executing task through {agent_name}: {e}")
+            return {
+                "success": False,
+                "error": f"Task execution error: {str(e)}",
+                "agent_name": agent_name
+            }
+    
     async def execute_task(self, task_id: str, app_state: AppState) -> Dict[str, Any]:
         """Execute a specific task
         

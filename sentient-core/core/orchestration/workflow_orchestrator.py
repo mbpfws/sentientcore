@@ -362,21 +362,71 @@ Keep the response concise and focused.
             }]
         }
     
-    async def execute_task(self, task_id: str, app_state: AppState) -> Dict[str, Any]:
-        """Execute a specific task through the agent system
+    async def execute_task(self,
+                          task_id: str,
+                          task_description: str,
+                          agent_source: str = "orchestrator") -> Dict[str, Any]:
+        """Execute a specific task through the appropriate agent
         
         Args:
-            task_id: ID of the task to execute
-            app_state: Current application state
+            task_id: Unique identifier for the task
+            task_description: Description of the task to execute
+            agent_source: Source agent that should handle the task
             
         Returns:
-            Dictionary with updated task result and logs
+            Dictionary with success status, result, and any errors
         """
-        if not self.initialized or not self.agent_system:
+        if not self.initialized:
             logger.error("Workflow orchestrator not initialized")
-            return {"result": "System not initialized", "logs": []}
+            return {"success": False, "error": "System not initialized"}
         
-        return await self.agent_system.execute_task(task_id, app_state)
+        try:
+            logger.info(f"Executing task {task_id}: {task_description}")
+            
+            # Route task to appropriate agent based on agent_source
+            if agent_source in ["research", "researcher"]:
+                result = await self.agent_system.execute_agent_task(
+                    "research", task_description, {"task_id": task_id}
+                )
+            elif agent_source in ["architect", "planner"]:
+                result = await self.agent_system.execute_agent_task(
+                    "architect", task_description, {"task_id": task_id}
+                )
+            elif agent_source in ["coding", "developer"]:
+                result = await self.agent_system.execute_agent_task(
+                    "coding", task_description, {"task_id": task_id}
+                )
+            elif agent_source in ["monitoring", "monitor"]:
+                result = await self.agent_system.execute_agent_task(
+                    "monitoring", task_description, {"task_id": task_id}
+                )
+            else:
+                # Default to orchestrator for unknown agent sources
+                result = await self.agent_system.execute_agent_task(
+                    "orchestrator", task_description, {"task_id": task_id}
+                )
+            
+            if result and result.get("success", False):
+                return {
+                    "success": True,
+                    "result": result.get("result", "Task completed successfully"),
+                    "agent_source": agent_source
+                }
+            else:
+                error_msg = result.get("error", "Task execution failed") if result else "No result returned"
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "agent_source": agent_source
+                }
+                
+        except Exception as e:
+            logger.error(f"Error executing task {task_id}: {e}")
+            return {
+                "success": False,
+                "error": f"Task execution error: {str(e)}",
+                "agent_source": agent_source
+            }
     
     def get_system_status(self) -> Dict[str, Any]:
         """Get current system status
