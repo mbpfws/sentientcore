@@ -2,6 +2,7 @@ import os
 import sys
 import os
 from dotenv import load_dotenv
+from app.ui.sidebar import render_sidebar
 
 # Ensure the project root is in the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
