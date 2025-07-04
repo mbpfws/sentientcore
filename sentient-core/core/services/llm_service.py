@@ -3,7 +3,7 @@ import asyncio
 import base64
 import time
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator, List, Dict, Any, Optional, Union
+from typing import AsyncGenerator, List, Dict, Any, Optional, Union, Awaitable
 from collections import defaultdict, deque
 from datetime import datetime
 
@@ -89,11 +89,15 @@ class GeminiProvider(LLMProvider):
         super().__init__(client, ["gemini-1.5-flash-latest"])
 
     async def generate(self, model: str, messages: List[Dict[str, Any]], **kwargs) -> str:
-        response = self.client.chat.completions.create(model=model, messages=messages, **kwargs)
+        response = await asyncio.to_thread(
+            self.client.chat.completions.create, model=model, messages=messages, **kwargs
+        )
         return response.choices[0].message.content
 
     async def generate_stream(self, model: str, messages: List[Dict[str, Any]], **kwargs) -> AsyncGenerator[str, None]:
-        stream = self.client.chat.completions.create(model=model, messages=messages, stream=True, **kwargs)
+        stream = await asyncio.to_thread(
+            self.client.chat.completions.create, model=model, messages=messages, stream=True, **kwargs
+        )
         for chunk in stream:
             if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
@@ -176,7 +180,7 @@ class EnhancedLLMService:
             }
         ]
 
-    async def invoke(
+    def invoke(
         self,
         system_prompt: str,
         user_prompt: str,
@@ -184,14 +188,14 @@ class EnhancedLLMService:
         image_bytes: Optional[bytes] = None,
         stream: bool = False,
         **kwargs,
-    ) -> Union[str, AsyncGenerator[str, None]]:
+    ) -> Union[Awaitable[str], AsyncGenerator[str, None]]:
         """Primary method to interact with the LLM service."""
         prompt = f"{system_prompt}\n\nUser: {user_prompt}"
         messages = self._construct_multimodal_messages(prompt, image_bytes)
         if stream:
             return self.stream_response(model, messages, **kwargs)
         else:
-            return await self.generate_with_fallback(model, messages, **kwargs)
+            return self.generate_with_fallback(model, messages, **kwargs)
     
     def invoke_sync(
         self,

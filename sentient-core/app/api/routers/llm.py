@@ -54,7 +54,7 @@ async def stream_llm_response(
     Endpoint to get a streaming response from the LLM service.
     Uses Server-Sent Events (SSE) to stream data.
     """
-    response_stream = await service.invoke(
+    response_stream = service.invoke(
         system_prompt=request.system_prompt,
         user_prompt=request.user_prompt,
         model=request.model,
