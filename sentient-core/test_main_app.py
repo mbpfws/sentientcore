@@ -24,8 +24,8 @@ def test_memory_store_endpoint():
     
     payload = {
         "content": "Test memory content",
-        "layer": "episodic",
-        "memory_type": "experience",
+        "layer": "knowledge_synthesis",
+        "memory_type": "research_finding",
         "metadata": {"test": "true"}
     }
     

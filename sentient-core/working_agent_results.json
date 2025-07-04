@@ -1,0 +1,67 @@
+{
+  "summary": {
+    "total_tests": 8,
+    "passed": 3,
+    "partial": 0,
+    "failed": 5,
+    "success_rate": 37.5
+  },
+  "detailed_results": [
+    {
+      "test_name": "UltraOrchestrator: Initialization",
+      "status": "PASS",
+      "message": "Successfully initialized UltraOrchestrator",
+      "details": {},
+      "timestamp": "2025-07-04T17:30:05.698494"
+    },
+    {
+      "test_name": "UltraOrchestrator: Basic Test",
+      "status": "FAIL",
+      "message": "Test failed with error: expected string or bytes-like object, got 'coroutine'",
+      "details": {},
+      "timestamp": "2025-07-04T17:30:05.699220"
+    },
+    {
+      "test_name": "ResearchAgent: Initialization",
+      "status": "PASS",
+      "message": "Successfully initialized ResearchAgent",
+      "details": {},
+      "timestamp": "2025-07-04T17:30:05.702973"
+    },
+    {
+      "test_name": "ResearchAgent: Basic Test",
+      "status": "FAIL",
+      "message": "Test failed with error: 'coroutine' object has no attribute 'strip'",
+      "details": {},
+      "timestamp": "2025-07-04T17:30:05.703608"
+    },
+    {
+      "test_name": "Conversation Flow: Multi-turn",
+      "status": "FAIL",
+      "message": "Test failed with error: expected string or bytes-like object, got 'coroutine'",
+      "details": {},
+      "timestamp": "2025-07-04T17:30:05.704859"
+    },
+    {
+      "test_name": "E2E Research: Complete Process",
+      "status": "FAIL",
+      "message": "Test failed with error: 'coroutine' object has no attribute 'strip'",
+      "details": {},
+      "timestamp": "2025-07-04T17:30:05.705699"
+    },
+    {
+      "test_name": "Research Workflow: Import",
+      "status": "PASS",
+      "message": "Successfully imported research workflow",
+      "details": {},
+      "timestamp": "2025-07-04T17:30:05.706651"
+    },
+    {
+      "test_name": "Research Workflow: Async Test",
+      "status": "FAIL",
+      "message": "Test failed with error: 'coroutine' object has no attribute 'strip'",
+      "details": {},
+      "timestamp": "2025-07-04T17:30:05.720627"
+    }
+  ]
+}

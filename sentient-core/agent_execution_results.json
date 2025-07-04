@@ -1,0 +1,66 @@
+{
+  "total_tests": 8,
+  "status_counts": {
+    "PASS": 3,
+    "FAIL": 5
+  },
+  "detailed_results": [
+    {
+      "test_name": "Research Agent: Initialization",
+      "status": "PASS",
+      "details": "Successfully initialized ResearchAgent with LLM service",
+      "data": null,
+      "timestamp": "2025-07-04T17:23:52.635177"
+    },
+    {
+      "test_name": "Research Agent: Planning",
+      "status": "FAIL",
+      "details": "Planning failed: 'coroutine' object has no attribute 'strip'",
+      "data": null,
+      "timestamp": "2025-07-04T17:23:52.635637"
+    },
+    {
+      "test_name": "Research Agent: Search Execution",
+      "status": "FAIL",
+      "details": "Search execution failed: 'coroutine' object is not subscriptable",
+      "data": null,
+      "timestamp": "2025-07-04T17:23:52.641032"
+    },
+    {
+      "test_name": "Ultra Orchestrator: Initialization",
+      "status": "PASS",
+      "details": "Successfully initialized UltraOrchestrator",
+      "data": null,
+      "timestamp": "2025-07-04T17:23:53.339794"
+    },
+    {
+      "test_name": "Ultra Orchestrator: Message Processing",
+      "status": "FAIL",
+      "details": "Message processing failed: 'UltraOrchestrator' object has no attribute 'process_message'",
+      "data": null,
+      "timestamp": "2025-07-04T17:23:53.340105"
+    },
+    {
+      "test_name": "Workflow Graph: Import",
+      "status": "PASS",
+      "details": "Successfully imported research workflow graph",
+      "data": null,
+      "timestamp": "2025-07-04T17:23:54.993945"
+    },
+    {
+      "test_name": "Workflow Graph: Execution",
+      "status": "FAIL",
+      "details": "Workflow execution failed: 'coroutine' object has no attribute 'strip'",
+      "data": null,
+      "timestamp": "2025-07-04T17:23:55.114312"
+    },
+    {
+      "test_name": "E2E Workflow: Complete Research",
+      "status": "FAIL",
+      "details": "End-to-end workflow failed: 'UltraOrchestrator' object has no attribute 'process_message'",
+      "data": null,
+      "timestamp": "2025-07-04T17:23:55.749977"
+    }
+  ],
+  "timestamp": "2025-07-04T17:23:55.755458"
+}

@@ -3,50 +3,50 @@
     "health_check": {
       "status": "PASS",
       "details": "Status: 200",
-      "timestamp": "2025-07-04T16:27:41.360489"
+      "timestamp": "2025-07-04T17:07:39.449697"
     }
   },
   "frontend_tests": {
     "health_check": {
       "status": "PASS",
       "details": "Status: 200",
-      "timestamp": "2025-07-04T16:27:41.443493"
+      "timestamp": "2025-07-04T17:07:39.516079"
     }
   },
   "memory_tests": {
     "store_memory": {
       "status": "FAIL",
       "details": "Status: 500, Response: {\"detail\":\"Error storing memory: 'MemoryService' object has no attribute 'store_memory'\"}",
-      "timestamp": "2025-07-04T16:27:43.460524"
+      "timestamp": "2025-07-04T17:07:41.561709"
     },
     "retrieve_memory": {
       "status": "FAIL",
       "details": "Status: 500, Response: {\"detail\":\"Error retrieving memory: 'MemoryService' object has no attribute 'retrieve_memories'\"}",
-      "timestamp": "2025-07-04T16:27:45.495189"
+      "timestamp": "2025-07-04T17:07:43.613308"
     },
     "memory_stats": {
       "status": "FAIL",
       "details": "Status: 500",
-      "timestamp": "2025-07-04T16:27:47.518184"
+      "timestamp": "2025-07-04T17:07:45.647556"
     }
   },
   "orchestrator_tests": {
     "conversation_flow": {
       "status": "PASS",
       "details": "Response received: 293 chars",
-      "timestamp": "2025-07-04T16:27:49.559808"
+      "timestamp": "2025-07-04T17:07:47.677263"
     }
   },
   "development_stage": {
     "endpoint_analysis": {
       "status": "INFO",
       "details": "Available endpoints: ['/', '/api/core-services/memory/store', '/api/core-services/memory/retrieve', '/api/chat/message', '/api/agents', '/api/workflows']",
-      "timestamp": "2025-07-04T16:28:03.853893"
+      "timestamp": "2025-07-04T17:08:01.939829"
     },
     "phase_completion": {
       "status": "INFO",
       "details": "Completed phases: ['Phase 1 - Core Setup', 'Phase 3 - Agent Framework', 'Phase 4 - Orchestrator', 'Phase 5 - Workflows']",
-      "timestamp": "2025-07-04T16:28:03.854330"
+      "timestamp": "2025-07-04T17:08:01.940279"
     }
   }
 }

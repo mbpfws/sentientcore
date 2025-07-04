@@ -1,0 +1,125 @@
+{
+  "total_tests": 13,
+  "status_counts": {
+    "PASS": 8,
+    "PARTIAL": 1,
+    "NOT_IMPLEMENTED": 4
+  },
+  "detailed_results": [
+    {
+      "test_name": "Direct Import: UltraOrchestrator",
+      "status": "PASS",
+      "details": "Successfully imported UltraOrchestrator class",
+      "data": null,
+      "timestamp": "2025-07-04T17:17:22.989479"
+    },
+    {
+      "test_name": "Direct Import: ResearchAgent",
+      "status": "PASS",
+      "details": "Successfully imported ResearchAgent class",
+      "data": null,
+      "timestamp": "2025-07-04T17:17:22.992432"
+    },
+    {
+      "test_name": "Direct Import: ResearchWorkflow",
+      "status": "PASS",
+      "details": "Successfully imported research workflow graph",
+      "data": null,
+      "timestamp": "2025-07-04T17:17:26.090175"
+    },
+    {
+      "test_name": "Conversation: Project Planning Request",
+      "status": "PARTIAL",
+      "details": "Only found 1/3 expected elements",
+      "data": {
+        "response": "{'data': {'id': 'msg_1751624248167', 'content': \"I received your message: 'I want to build a Vietnamese language learning app with AI tutoring features. Can you help me plan this project?'. The workfl..."
+      },
+      "timestamp": "2025-07-04T17:17:28.170555"
+    },
+    {
+      "test_name": "Conversation: Technical Research Request",
+      "status": "PASS",
+      "details": "Found 3/3 expected elements",
+      "data": {
+        "response_length": 312,
+        "found_elements": [
+          "research",
+          "model",
+          "vietnamese"
+        ]
+      },
+      "timestamp": "2025-07-04T17:17:30.227683"
+    },
+    {
+      "test_name": "Conversation: Architecture Question",
+      "status": "PASS",
+      "details": "Found 3/3 expected elements",
+      "data": {
+        "response_length": 324,
+        "found_elements": [
+          "architecture",
+          "real-time",
+          "voice"
+        ]
+      },
+      "timestamp": "2025-07-04T17:17:32.275010"
+    },
+    {
+      "test_name": "Agent: List Available Agents",
+      "status": "PASS",
+      "details": "Response received: 466 chars",
+      "data": {
+        "status_code": 200
+      },
+      "timestamp": "2025-07-04T17:17:34.340109"
+    },
+    {
+      "test_name": "Agent: Research Agent",
+      "status": "NOT_IMPLEMENTED",
+      "details": "Endpoint not yet implemented",
+      "data": null,
+      "timestamp": "2025-07-04T17:17:36.389042"
+    },
+    {
+      "test_name": "Agent: Architect Agent",
+      "status": "NOT_IMPLEMENTED",
+      "details": "Endpoint not yet implemented",
+      "data": null,
+      "timestamp": "2025-07-04T17:17:38.419616"
+    },
+    {
+      "test_name": "Workflow: List Available Workflows",
+      "status": "PASS",
+      "details": "Workflow executed: 364 chars response",
+      "data": {
+        "status_code": 200
+      },
+      "timestamp": "2025-07-04T17:17:40.448999"
+    },
+    {
+      "test_name": "Workflow: Research Workflow",
+      "status": "NOT_IMPLEMENTED",
+      "details": "Workflow endpoint not yet implemented",
+      "data": null,
+      "timestamp": "2025-07-04T17:17:42.478769"
+    },
+    {
+      "test_name": "Workflow: Design Workflow",
+      "status": "NOT_IMPLEMENTED",
+      "details": "Workflow endpoint not yet implemented",
+      "data": null,
+      "timestamp": "2025-07-04T17:17:44.518713"
+    },
+    {
+      "test_name": "System Integration: Full Workflow",
+      "status": "PASS",
+      "details": "Complex request processed successfully. Found 8 relevant indicators.",
+      "data": {
+        "response_length": 361,
+        "indicators_found": 8
+      },
+      "timestamp": "2025-07-04T17:17:46.543906"
+    }
+  ],
+  "timestamp": "2025-07-04T17:17:46.552523"
+}
