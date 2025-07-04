@@ -9,9 +9,9 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core.models import AppState, TaskStatus, EnhancedTask, LogEntry
-# from graphs.intelligent_rag_graph import app as intelligent_rag_app
-# from graphs.multi_agent_rag_graph import app as multi_agent_app
-# from graphs.orchestration_graph import app as orchestration_app
+# from core.graphs.intelligent_rag_graph import app as intelligent_rag_app
+# from core.graphs.multi_agent_rag_graph import app as multi_agent_app
+# from core.graphs.orchestration_graph import app as orchestration_app
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 

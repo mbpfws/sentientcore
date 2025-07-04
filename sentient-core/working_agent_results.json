@@ -1,10 +1,10 @@
 {
   "summary": {
-    "total_tests": 8,
-    "passed": 3,
+    "total_tests": 9,
+    "passed": 6,
     "partial": 0,
-    "failed": 5,
-    "success_rate": 37.5
+    "failed": 3,
+    "success_rate": 66.66666666666666
   },
   "detailed_results": [
     {
@@ -12,56 +12,72 @@
       "status": "PASS",
       "message": "Successfully initialized UltraOrchestrator",
       "details": {},
-      "timestamp": "2025-07-04T17:30:05.698494"
+      "timestamp": "2025-07-04T18:38:43.159591"
     },
     {
-      "test_name": "UltraOrchestrator: Basic Test",
+      "test_name": "UltraOrchestrator: Invoke Method",
       "status": "FAIL",
-      "message": "Test failed with error: expected string or bytes-like object, got 'coroutine'",
+      "message": "Unexpected result format: <class 'coroutine'>",
       "details": {},
-      "timestamp": "2025-07-04T17:30:05.699220"
+      "timestamp": "2025-07-04T18:38:43.160115"
     },
     {
       "test_name": "ResearchAgent: Initialization",
       "status": "PASS",
       "message": "Successfully initialized ResearchAgent",
       "details": {},
-      "timestamp": "2025-07-04T17:30:05.702973"
+      "timestamp": "2025-07-04T18:38:43.163775"
     },
     {
-      "test_name": "ResearchAgent: Basic Test",
-      "status": "FAIL",
-      "message": "Test failed with error: 'coroutine' object has no attribute 'strip'",
-      "details": {},
-      "timestamp": "2025-07-04T17:30:05.703608"
+      "test_name": "ResearchAgent: Planning",
+      "status": "PASS",
+      "message": "Successfully planned 5 research steps",
+      "details": {
+        "steps_count": 5,
+        "first_step_query": "top options and alternatives for React authentication"
+      },
+      "timestamp": "2025-07-04T18:38:46.284874"
     },
     {
       "test_name": "Conversation Flow: Multi-turn",
       "status": "FAIL",
-      "message": "Test failed with error: expected string or bytes-like object, got 'coroutine'",
+      "message": "Test failed with error: 'AppState' object has no attribute 'get'",
       "details": {},
-      "timestamp": "2025-07-04T17:30:05.704859"
+      "timestamp": "2025-07-04T18:38:46.973879"
     },
     {
-      "test_name": "E2E Research: Complete Process",
-      "status": "FAIL",
-      "message": "Test failed with error: 'coroutine' object has no attribute 'strip'",
-      "details": {},
-      "timestamp": "2025-07-04T17:30:05.705699"
+      "test_name": "E2E Research: Execution",
+      "status": "PASS",
+      "message": "Successfully executed search step",
+      "details": {
+        "completed_steps": 1,
+        "result_length": 5353
+      },
+      "timestamp": "2025-07-04T18:38:59.835553"
+    },
+    {
+      "test_name": "E2E Research: Synthesis",
+      "status": "PASS",
+      "message": "Successfully synthesized final report",
+      "details": {
+        "report_length": 2908,
+        "suggestions_count": 4
+      },
+      "timestamp": "2025-07-04T18:39:10.997094"
     },
     {
       "test_name": "Research Workflow: Import",
       "status": "PASS",
       "message": "Successfully imported research workflow",
       "details": {},
-      "timestamp": "2025-07-04T17:30:05.706651"
+      "timestamp": "2025-07-04T18:39:10.997614"
     },
     {
-      "test_name": "Research Workflow: Async Test",
+      "test_name": "Research Workflow: Execution",
       "status": "FAIL",
-      "message": "Test failed with error: 'coroutine' object has no attribute 'strip'",
+      "message": "Workflow execution failed or returned invalid result",
       "details": {},
-      "timestamp": "2025-07-04T17:30:05.720627"
+      "timestamp": "2025-07-04T18:40:27.831698"
     }
   ]
 }

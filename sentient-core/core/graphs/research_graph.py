@@ -12,13 +12,13 @@ def should_continue(state: ResearchState) -> str:
     else:
         return "synthesize_report"
 
-def execute_search_with_streaming(state: ResearchState) -> ResearchState:
+async def execute_search_with_streaming(state: ResearchState) -> ResearchState:
     """
     Wrapper function to execute search with streaming support.
     """
     # Get streaming callback from state if available
     stream_callback = getattr(state, 'stream_callback', None)
-    return research_agent.execute_search(state, stream_callback)
+    return await research_agent.execute_search(state, stream_callback)
 
 # Initialize services and agents
 llm_service = EnhancedLLMService()

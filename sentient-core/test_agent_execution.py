@@ -63,7 +63,7 @@ class AgentExecutionTester:
             
             # Test planning steps
             try:
-                planned_state = research_agent.plan_steps(research_state)
+                planned_state = await research_agent.plan_steps(research_state)
                 
                 if planned_state.steps and len(planned_state.steps) > 0:
                     self.log_result(
@@ -102,7 +102,7 @@ class AgentExecutionTester:
                 )
                 
                 # Execute search
-                result_state = research_agent.execute_search(search_state)
+                result_state = await research_agent.execute_search(search_state)
                 
                 if result_state.steps and any(step.result for step in result_state.steps):
                     completed_steps = [step for step in result_state.steps if step.result]
@@ -202,7 +202,7 @@ class AgentExecutionTester:
         print("\n🔄 Testing Workflow Graph Execution...")
         
         try:
-            from graphs.research_graph import research_app
+            from core.graphs.research_graph import research_app
             from core.models import ResearchState
             
             self.log_result(
@@ -305,14 +305,14 @@ class AgentExecutionTester:
                 )
                 
                 # Plan research steps
-                planned_research = research_agent.plan_steps(research_state)
+                planned_research = await research_agent.plan_steps(research_state)
                 
                 # Execute research
                 if planned_research.steps:
-                    executed_research = research_agent.execute_search(planned_research)
+                    executed_research = await research_agent.execute_search(planned_research)
                     
                     # Generate final report
-                    final_research = research_agent.synthesize_report(executed_research)
+                    final_research = await research_agent.synthesize_report(executed_research)
                     
                     if final_research.final_report:
                         self.log_result(

@@ -30,7 +30,7 @@ class ResearchAgent:
             "reasoning": "compound-beta"  # Best for deep reasoning
         }
 
-    def determine_research_mode(self, query: str) -> ResearchMode:
+    async def determine_research_mode(self, query: str) -> ResearchMode:
         """
         Intelligently determines the appropriate research mode based on query analysis.
         """
@@ -48,7 +48,7 @@ Research Modes:
 Respond with only one word: KNOWLEDGE, DEEP, or BEST_IN_CLASS
 """
         
-        response = self.llm_service.invoke(
+        response = await self.llm_service.invoke(
             system_prompt="You are an expert at categorizing research queries.",
             user_prompt=mode_prompt,
             model=self.models["planning"]
@@ -63,7 +63,7 @@ Respond with only one word: KNOWLEDGE, DEEP, or BEST_IN_CLASS
         else:
             return ResearchMode.KNOWLEDGE
 
-    def plan_steps(self, state: ResearchState) -> ResearchState:
+    async def plan_steps(self, state: ResearchState) -> ResearchState:
         """
         Generates research steps based on the determined research mode.
         """
@@ -71,19 +71,19 @@ Respond with only one word: KNOWLEDGE, DEEP, or BEST_IN_CLASS
         print("---RESEARCH AGENT: INTELLIGENT PLANNING---")
         
         # Determine research mode
-        research_mode = self.determine_research_mode(state.original_query)
+        research_mode = await self.determine_research_mode(state.original_query)
         state.logs.append(LogEntry(source="ResearchAgent", message=f"Selected research mode: {research_mode.value}"))
         print(f"Research mode selected: {research_mode.value}")
         
         # Generate mode-specific research plan
         if research_mode == ResearchMode.KNOWLEDGE:
-            return self._plan_knowledge_research(state)
+            return await self._plan_knowledge_research(state)
         elif research_mode == ResearchMode.DEEP:
-            return self._plan_deep_research(state)
+            return await self._plan_deep_research(state)
         else:  # BEST_IN_CLASS
-            return self._plan_best_in_class_research(state)
+            return await self._plan_best_in_class_research(state)
 
-    def _plan_knowledge_research(self, state: ResearchState) -> ResearchState:
+    async def _plan_knowledge_research(self, state: ResearchState) -> ResearchState:
         """Plans multi-source keyword search for knowledge gathering."""
         system_prompt = """
 You are a research planning expert. Create a comprehensive knowledge research plan.
@@ -99,7 +99,7 @@ Break down the query into 4-6 specific search queries that will gather informati
 }
 """
         
-        response = self._get_json_response(system_prompt, state.original_query, "planning")
+        response = await self._get_json_response(system_prompt, state.original_query, "planning")
         queries = response.get("queries", [state.original_query])
         state.steps = [ResearchStep(query=q) for q in queries]
         
@@ -107,7 +107,7 @@ Break down the query into 4-6 specific search queries that will gather informati
         state.logs.append(LogEntry(source="ResearchAgent", message=log_msg))
         return state
 
-    def _plan_deep_research(self, state: ResearchState) -> ResearchState:
+    async def _plan_deep_research(self, state: ResearchState) -> ResearchState:
         """Plans in-depth research with reasoning and analysis."""
         system_prompt = """
 You are a deep research strategist. Create a sophisticated research plan for in-depth analysis.
@@ -125,7 +125,7 @@ Include background research, current state analysis, expert perspectives, and fu
 }
 """
         
-        response = self._get_json_response(system_prompt, state.original_query, "planning")
+        response = await self._get_json_response(system_prompt, state.original_query, "planning")
         queries = response.get("queries", [state.original_query])
         state.steps = [ResearchStep(query=q) for q in queries]
         
@@ -133,7 +133,7 @@ Include background research, current state analysis, expert perspectives, and fu
         state.logs.append(LogEntry(source="ResearchAgent", message=log_msg))
         return state
 
-    def _plan_best_in_class_research(self, state: ResearchState) -> ResearchState:
+    async def _plan_best_in_class_research(self, state: ResearchState) -> ResearchState:
         """Plans comparative research to find optimal solutions."""
         system_prompt = """
 You are a comparative analysis expert. Create a research plan to identify the best options and alternatives.
@@ -151,7 +151,7 @@ Focus on gathering different approaches, solutions, or tools, then evaluating th
 }
 """
         
-        response = self._get_json_response(system_prompt, state.original_query, "planning")
+        response = await self._get_json_response(system_prompt, state.original_query, "planning")
         queries = response.get("queries", [state.original_query])
         state.steps = [ResearchStep(query=q) for q in queries]
         
@@ -159,7 +159,7 @@ Focus on gathering different approaches, solutions, or tools, then evaluating th
         state.logs.append(LogEntry(source="ResearchAgent", message=log_msg))
         return state
 
-    def execute_search(self, state: ResearchState, stream_callback=None) -> ResearchState:
+    async def execute_search(self, state: ResearchState, stream_callback=None) -> ResearchState:
         """
         Executes the next pending web search using compound models with tool access.
         Supports streaming for real-time updates.
@@ -251,7 +251,7 @@ Format your response as a detailed research finding with clear structure.
 
         return state
 
-    def synthesize_report(self, state: ResearchState) -> ResearchState:
+    async def synthesize_report(self, state: ResearchState) -> ResearchState:
         """
         Synthesizes research findings into a comprehensive report based on research mode.
         """
@@ -266,11 +266,11 @@ Format your response as a detailed research finding with clear structure.
             all_results.append(f"**Research Finding {i+1}:** {step.query}\n\n{step.result}\n\n---\n")
         
         if research_mode == ResearchMode.KNOWLEDGE:
-            return self._synthesize_knowledge_report(state, all_results)
+            return await self._synthesize_knowledge_report(state, all_results)
         elif research_mode == ResearchMode.DEEP:
-            return self._synthesize_deep_report(state, all_results)
+            return await self._synthesize_deep_report(state, all_results)
         else:  # BEST_IN_CLASS
-            return self._synthesize_best_in_class_report(state, all_results)
+            return await self._synthesize_best_in_class_report(state, all_results)
 
     async def _synthesize_knowledge_report(self, state: ResearchState, all_results: List[str]) -> ResearchState:
         """Synthesizes a knowledge-focused report."""

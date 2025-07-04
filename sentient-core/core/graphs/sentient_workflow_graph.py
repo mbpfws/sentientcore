@@ -20,11 +20,21 @@ workflow = StateGraph(AppState)
 
 # --- Define the graph nodes ---
 
+# Async wrapper for the Ultra Orchestrator
+async def ultra_orchestrator_node(state: AppState) -> AppState:
+    """Async wrapper for the Ultra Orchestrator invoke method."""
+    return await ultra_orchestrator.invoke(state)
+
+# Sync wrapper for the Monitoring Agent
+def monitoring_agent_node(state: AppState) -> AppState:
+    """Wrapper for the Monitoring Agent invoke method."""
+    return monitoring_agent.invoke(state)
+
 # Node for the Ultra Orchestrator to make decisions
-workflow.add_node("ultra_orchestrator", ultra_orchestrator.invoke)
+workflow.add_node("ultra_orchestrator", ultra_orchestrator_node)
 
 # Node for the Monitoring Agent to observe and log
-workflow.add_node("monitor", monitoring_agent.invoke)
+workflow.add_node("monitor", monitoring_agent_node)
 
 # --- Define a routing function ---
 def route_from_monitor(state: AppState) -> str:

@@ -15,7 +15,7 @@ from core.agents.ultra_orchestrator import UltraOrchestrator
 from core.agents.research_agent import ResearchAgent
 from core.models import AppState, Message, ResearchState, ResearchStep, LogEntry
 from core.services.llm_service import EnhancedLLMService
-from graphs.research_graph import research_app
+from core.graphs.research_graph import research_app
 
 class RealFunctionalityTester:
     """Tests actual system functionality with real API calls and agent interactions."""

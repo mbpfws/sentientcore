@@ -19,7 +19,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from core.models import AppState, Message, EnhancedTask, TaskStatus
 from core.agents.intelligent_orchestrator import IntelligentOrchestrator
 from core.services.llm_service import EnhancedLLMService
-from graphs.intelligent_rag_graph import intelligent_workflow
+from core.graphs.intelligent_rag_graph import intelligent_workflow
 import json
 
 def test_intelligent_orchestrator():
