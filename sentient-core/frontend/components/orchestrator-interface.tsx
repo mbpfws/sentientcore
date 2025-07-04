@@ -132,19 +132,18 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
       );
 
       // Send to chat service with orchestrator mode
-      const chatService = new ChatService();
-      const response = await chatService.sendMessage({
+      const response = await ChatService.sendMessage({
         message: inputMessage,
         workflow_mode: orchestratorMode,
         research_mode: 'knowledge'
       });
 
-      if (response.success) {
-        addOrchestratorMessage(response.response);
+      if (response) {
+        addOrchestratorMessage(response.content);
         
         // Store orchestrator response
         await coreServicesClient.storeConversation(
-          `Orchestrator: ${response.response}`,
+          `Orchestrator: ${response.content}`,
           { 
             orchestrator_mode: orchestratorMode,
             timestamp: new Date().toISOString()

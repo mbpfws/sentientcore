@@ -180,4 +180,4 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
             ))
             state.next_action = "request_clarification"
 
-        return state.model_dump() 
+        return state

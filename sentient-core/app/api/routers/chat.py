@@ -11,7 +11,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core.models import AppState, Message, LogEntry
-# from graphs.intelligent_rag_graph import app as intelligent_rag_app
+from graphs.sentient_workflow_graph import app as sentient_workflow_app
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -63,26 +63,18 @@ async def process_chat_message(chat_request: ChatRequest):
         if chat_request.image_data:
             app_state.image = chat_request.image_data
         
-        # Process through appropriate workflow - temporarily disabled
-        # Temporarily return a mock response since graph modules are missing
-        mock_response = Message(
-            sender="assistant",
-            content=f"I received your message: '{message_text}'. The workflow system is currently being set up.",
-            created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        )
-        app_state.messages.append(mock_response)
-        result = app_state
-        
-        # if chat_request.workflow_mode == "intelligent":
-        #     result = intelligent_rag_app.invoke(app_state.model_dump())
-        # elif chat_request.workflow_mode == "multi_agent":
-        #     from graphs.multi_agent_rag_graph import app as multi_agent_app
-        #     result = multi_agent_app.invoke(app_state.model_dump())
-        # elif chat_request.workflow_mode == "legacy":
-        #     from graphs.orchestration_graph import app as orchestration_app
-        #     result = orchestration_app.invoke(app_state.model_dump())
-        # else:
-        #     raise HTTPException(status_code=400, detail=f"Invalid workflow mode: {chat_request.workflow_mode}")
+        # Process through the sentient workflow graph
+        try:
+            result = sentient_workflow_app.invoke(app_state.model_dump())
+        except Exception as workflow_error:
+            # Fallback to a helpful error message if workflow fails
+            error_response = Message(
+                sender="assistant",
+                content=f"I encountered an issue processing your request: {str(workflow_error)}. Please try again or contact support if the issue persists.",
+                created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            )
+            app_state.messages.append(error_response)
+            result = app_state
         
         # Convert result to AppState model and extract assistant response
         if isinstance(result, dict):

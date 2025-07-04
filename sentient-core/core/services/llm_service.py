@@ -192,6 +192,39 @@ class EnhancedLLMService:
             return self.stream_response(model, messages, **kwargs)
         else:
             return await self.generate_with_fallback(model, messages, **kwargs)
+    
+    def invoke_sync(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        image_bytes: Optional[bytes] = None,
+        stream: bool = False,
+        **kwargs,
+    ) -> str:
+        """Synchronous wrapper for the invoke method."""
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If we're already in an async context, create a new thread
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        asyncio.run, 
+                        self.invoke(system_prompt, user_prompt, model, image_bytes, stream, **kwargs)
+                    )
+                    return future.result()
+            else:
+                # If no loop is running, we can use asyncio.run
+                return asyncio.run(
+                    self.invoke(system_prompt, user_prompt, model, image_bytes, stream, **kwargs)
+                )
+        except RuntimeError:
+            # Fallback: create a new event loop
+            return asyncio.run(
+                self.invoke(system_prompt, user_prompt, model, image_bytes, stream, **kwargs)
+            )
 
     async def generate_with_fallback(self, model: str, messages: List[Dict[str, Any]], **kwargs) -> str:
         """Generates a response with fallback and tracks usage statistics."""
