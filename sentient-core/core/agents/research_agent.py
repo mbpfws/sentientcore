@@ -226,7 +226,7 @@ Format your response as a detailed research finding with clear structure.
         except Exception as e:
             # Fallback to non-streaming
             print(f"Streaming failed, falling back to non-streaming: {e}")
-            search_result = self.llm_service.invoke(
+            search_result = await self.llm_service.invoke(
                 system_prompt=system_prompt,
                 user_prompt=f"Research this query thoroughly: {pending_step.query}",
                 model=self.models["search"],
@@ -272,7 +272,7 @@ Format your response as a detailed research finding with clear structure.
         else:  # BEST_IN_CLASS
             return self._synthesize_best_in_class_report(state, all_results)
 
-    def _synthesize_knowledge_report(self, state: ResearchState, all_results: List[str]) -> ResearchState:
+    async def _synthesize_knowledge_report(self, state: ResearchState, all_results: List[str]) -> ResearchState:
         """Synthesizes a knowledge-focused report."""
         synthesis_prompt = f"""
 You are a knowledge synthesis expert. Create a comprehensive, well-structured report that consolidates multiple sources of information.
@@ -301,14 +301,14 @@ Create a report with:
 }}
 """
         
-        response = self._get_json_response(synthesis_prompt, "", "synthesis")
+        response = await self._get_json_response(synthesis_prompt, "", "synthesis")
         state.final_report = response.get("report", "Failed to generate knowledge report.")
         state.continual_search_suggestions = response.get("continual_search_suggestions", [])
         
         state.logs.append(LogEntry(source="ResearchAgent", message="Knowledge report synthesized."))
         return state
 
-    def _synthesize_deep_report(self, state: ResearchState, all_results: List[str]) -> ResearchState:
+    async def _synthesize_deep_report(self, state: ResearchState, all_results: List[str]) -> ResearchState:
         """Synthesizes an in-depth analytical report."""
         synthesis_prompt = f"""
 You are a deep research analyst. Create a sophisticated, in-depth report with critical analysis and reasoning.
@@ -343,14 +343,14 @@ Use sophisticated reasoning, identify patterns, contradictions, and provide deep
 }}
 """
         
-        response = self._get_json_response(synthesis_prompt, "", "synthesis")
+        response = await self._get_json_response(synthesis_prompt, "", "synthesis")
         state.final_report = response.get("report", "Failed to generate deep research report.")
         state.continual_search_suggestions = response.get("continual_search_suggestions", [])
         
         state.logs.append(LogEntry(source="ResearchAgent", message="Deep research report synthesized."))
         return state
 
-    def _synthesize_best_in_class_report(self, state: ResearchState, all_results: List[str]) -> ResearchState:
+    async def _synthesize_best_in_class_report(self, state: ResearchState, all_results: List[str]) -> ResearchState:
         """Synthesizes a best-in-class comparative report."""
         synthesis_prompt = f"""
 You are a comparative analysis expert. Create a definitive report that identifies the best options and provides clear recommendations.
@@ -384,17 +384,17 @@ Focus on helping the reader make the best decision for their specific context.
 }}
 """
         
-        response = self._get_json_response(synthesis_prompt, "", "synthesis")
+        response = await self._get_json_response(synthesis_prompt, "", "synthesis")
         state.final_report = response.get("report", "Failed to generate best-in-class report.")
         state.continual_search_suggestions = response.get("continual_search_suggestions", [])
         
         state.logs.append(LogEntry(source="ResearchAgent", message="Best-in-class report synthesized."))
         return state
 
-    def _get_json_response(self, system_prompt: str, user_prompt: str, model_type: str) -> Dict:
+    async def _get_json_response(self, system_prompt: str, user_prompt: str, model_type: str) -> Dict:
         """Helper method to get and parse JSON responses with error handling."""
         try:
-            response = self.llm_service.invoke(
+            response = await self.llm_service.invoke(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 model=self.models[model_type]

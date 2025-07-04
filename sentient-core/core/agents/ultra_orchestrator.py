@@ -121,7 +121,7 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
             return match.group(1)
         return response
 
-    def invoke(self, state: AppState) -> Dict[str, Any]:
+    async def invoke(self, state: AppState) -> Dict[str, Any]:
         """
         The main entry point for the Ultra Orchestrator's decision-making process.
         """
@@ -135,7 +135,7 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
         model_name = "gemini-2.5-flash" if state.image else "llama-3.3-70b-versatile"
 
         # Call the LLM with the system prompt and context, ensuring no streaming
-        response_obj = self.llm_service.invoke(
+        response_obj = await self.llm_service.invoke(
             system_prompt=self._get_system_prompt(),
             user_prompt=context,
             model=model_name,
