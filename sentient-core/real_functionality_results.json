@@ -1,0 +1,91 @@
+{
+  "summary": {
+    "total_tests": 7,
+    "passed": 3,
+    "partial": 0,
+    "failed": 4,
+    "success_rate": 42.857142857142854
+  },
+  "detailed_results": [
+    {
+      "test_name": "LLM Service: API Keys",
+      "status": "PASS",
+      "message": "Found 2 API key(s)",
+      "details": {
+        "available_keys": [
+          "GROQ_API_KEY",
+          "GEMINI_API_KEY"
+        ]
+      },
+      "timestamp": "2025-07-04T17:34:54.918398"
+    },
+    {
+      "test_name": "LLM Service: Initialization",
+      "status": "PASS",
+      "message": "Successfully initialized with 2 provider(s)",
+      "details": {
+        "providers": [
+          "groq",
+          "gemini"
+        ],
+        "fallback_chain": [
+          "groq",
+          "gemini"
+        ]
+      },
+      "timestamp": "2025-07-04T17:34:55.586414"
+    },
+    {
+      "test_name": "LLM Call: Simple Test",
+      "status": "PASS",
+      "message": "Successfully received response from LLM",
+      "details": {
+        "response_length": 26,
+        "response_preview": "Two plus two equals four.\n"
+      },
+      "timestamp": "2025-07-04T17:34:59.821200"
+    },
+    {
+      "test_name": "Orchestrator: Real Conversation",
+      "status": "FAIL",
+      "message": "Orchestrator test failed: expected string or bytes-like object, got 'coroutine'",
+      "details": {},
+      "timestamp": "2025-07-04T17:34:59.822458"
+    },
+    {
+      "test_name": "Research Agent: Real Research",
+      "status": "FAIL",
+      "message": "Research agent test failed: 'coroutine' object has no attribute 'strip'",
+      "details": {},
+      "timestamp": "2025-07-04T17:34:59.826746"
+    },
+    {
+      "test_name": "Research Workflow: Real Execution",
+      "status": "FAIL",
+      "message": "Workflow test failed: 'coroutine' object has no attribute 'strip'",
+      "details": {},
+      "timestamp": "2025-07-04T17:34:59.840302"
+    },
+    {
+      "test_name": "Multi-Turn: Conversation",
+      "status": "FAIL",
+      "message": "Multi-turn conversation failed: expected string or bytes-like object, got 'coroutine'",
+      "details": {},
+      "timestamp": "2025-07-04T17:34:59.840911"
+    }
+  ],
+  "llm_service_stats": {
+    "usage_by_provider": {
+      "gemini": 1
+    },
+    "errors_by_provider": {
+      "groq_general_error": 1
+    },
+    "average_response_times": {
+      "gemini": 3.6628236770629883
+    },
+    "total_requests": 1,
+    "total_errors": 1,
+    "recent_requests_count": 2
+  }
+}
