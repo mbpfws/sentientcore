@@ -1,0 +1,91 @@
+{
+  "summary": {
+    "total_tests": 9,
+    "passed": 8,
+    "partial": 0,
+    "failed": 1,
+    "success_rate": 88.88888888888889
+  },
+  "detailed_results": [
+    {
+      "test_name": "UltraOrchestrator: Initialization",
+      "status": "PASS",
+      "message": "Successfully initialized UltraOrchestrator",
+      "details": {},
+      "timestamp": "2025-07-05T15:55:32.913421"
+    },
+    {
+      "test_name": "UltraOrchestrator: Invoke Method",
+      "status": "PASS",
+      "message": "Successfully processed user request",
+      "details": {
+        "messages_count": 2,
+        "tasks_count": 0,
+        "next_action": "request_clarification"
+      },
+      "timestamp": "2025-07-05T15:55:33.987867"
+    },
+    {
+      "test_name": "ResearchAgent: Initialization",
+      "status": "PASS",
+      "message": "Successfully initialized ResearchAgent",
+      "details": {},
+      "timestamp": "2025-07-05T15:55:33.990083"
+    },
+    {
+      "test_name": "ResearchAgent: Planning",
+      "status": "PASS",
+      "message": "Successfully planned 5 research steps",
+      "details": {
+        "steps_count": 5,
+        "first_step_query": "top options and alternatives for React authentication"
+      },
+      "timestamp": "2025-07-05T15:55:36.239433"
+    },
+    {
+      "test_name": "Conversation Flow: Multi-turn",
+      "status": "PASS",
+      "message": "Successfully guided conversation to plan creation with 3 tasks",
+      "details": {
+        "conversation_turns": 3,
+        "final_action": "create_plan",
+        "tasks_created": 3
+      },
+      "timestamp": "2025-07-05T15:55:39.413733"
+    },
+    {
+      "test_name": "E2E Research: Execution",
+      "status": "PASS",
+      "message": "Successfully executed search step",
+      "details": {
+        "completed_steps": 1,
+        "result_length": 5430
+      },
+      "timestamp": "2025-07-05T15:55:51.094008"
+    },
+    {
+      "test_name": "E2E Research: Synthesis",
+      "status": "PASS",
+      "message": "Successfully synthesized final report",
+      "details": {
+        "report_length": 2797,
+        "suggestions_count": 4
+      },
+      "timestamp": "2025-07-05T15:55:57.026699"
+    },
+    {
+      "test_name": "Research Workflow: Import",
+      "status": "PASS",
+      "message": "Successfully imported research workflow",
+      "details": {},
+      "timestamp": "2025-07-05T15:55:57.027447"
+    },
+    {
+      "test_name": "Research Workflow: Execution",
+      "status": "FAIL",
+      "message": "Workflow execution returned invalid result",
+      "details": {},
+      "timestamp": "2025-07-05T15:56:54.787458"
+    }
+  ]
+}
