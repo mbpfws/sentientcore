@@ -958,7 +958,7 @@ class BuildExecutionGraphBuilder:
         else:
             return END
     
-    def build_graph(self) -> Graph:
+    def build_graph(self) -> Any:
         """Build and return the build execution graph."""
         workflow = StateGraph(BuildExecutionState)
         
@@ -998,7 +998,7 @@ def create_build_execution_graph(
     llm_service: EnhancedLLMService,
     memory_service: MemoryService,
     state_service: StateService
-) -> Graph:
+) -> Any:
     """Factory function to create a build execution graph."""
     builder = BuildExecutionGraphBuilder(llm_service, memory_service, state_service)
     return builder.build_graph()

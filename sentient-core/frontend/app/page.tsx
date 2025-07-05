@@ -13,6 +13,7 @@ import CoreServicesDashboard from '@/components/core-services-dashboard';
 import OrchestratorInterface from '@/components/orchestrator-interface';
 import { useAppContext } from '@/lib/context/app-context';
 import ClientOnly from '@/components/client-only';
+import { InteractiveWorkflowDashboard } from '@/components/interactive-workflow/InteractiveWorkflowDashboard';
 
 // Create a separate client component for the header to avoid hydration issues
 function Header() {
@@ -113,6 +114,7 @@ export default function Home() {
                   <TabsList>
                     <TabsTrigger value="orchestrator">Orchestrator</TabsTrigger>
                     <TabsTrigger value="core-services">Core Services</TabsTrigger>
+                    <TabsTrigger value="interactive-workflows">Interactive Workflows</TabsTrigger>
                     <TabsTrigger value="chat">Chat</TabsTrigger>
                     <TabsTrigger value="tasks">Tasks</TabsTrigger>
                     <TabsTrigger value="agents">Agents</TabsTrigger>
@@ -126,6 +128,10 @@ export default function Home() {
 
                 <TabsContent value="core-services" className="space-y-4">
                   <CoreServicesDashboard />
+                </TabsContent>
+
+                <TabsContent value="interactive-workflows" className="space-y-4">
+                  <InteractiveWorkflowDashboard />
                 </TabsContent>
 
                 <TabsContent value="chat" className="space-y-4">

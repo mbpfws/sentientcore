@@ -24,7 +24,6 @@ from .knowledge_synthesis_graph import create_knowledge_synthesis_graph, Knowled
 from ..services.llm_service import EnhancedLLMService
 from ..services.memory_service import MemoryService
 from ..services.state_service import StateService
-from ..services.groq_service import GroqService
 
 
 class GraphType(Enum):
@@ -81,13 +80,11 @@ class GraphIntegrationManager:
         self,
         llm_service: EnhancedLLMService,
         memory_service: MemoryService,
-        state_service: StateService,
-        groq_service: Optional[GroqService] = None
+        state_service: StateService
     ):
         self.llm_service = llm_service
         self.memory_service = memory_service
         self.state_service = state_service
-        self.groq_service = groq_service
         
         # Initialize graphs
         self.graphs: Dict[GraphType, StateGraph] = {}
@@ -562,8 +559,7 @@ class GraphIntegrationManager:
 def create_graph_integration_manager(
     llm_service: EnhancedLLMService,
     memory_service: MemoryService,
-    state_service: StateService,
-    groq_service: Optional[GroqService] = None
+    state_service: StateService
 ) -> GraphIntegrationManager:
     """Factory function to create a graph integration manager."""
-    return GraphIntegrationManager(llm_service, memory_service, state_service, groq_service)
+    return GraphIntegrationManager(llm_service, memory_service, state_service)

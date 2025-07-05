@@ -7,8 +7,7 @@ and deployment configuration.
 
 from typing import Dict, Any, List, Optional, Literal
 from pydantic import BaseModel, Field
-from langgraph import StateGraph, END
-from langgraph.graph import StateGraph
+from langgraph.graph import StateGraph, END
 from datetime import datetime
 import json
 
@@ -980,7 +979,7 @@ class BackendDevelopmentGraphBuilder:
         else:
             return END
     
-    def build_graph(self) -> Graph:
+    def build_graph(self) -> Any:
         """Build and return the backend development graph."""
         workflow = StateGraph(BackendDevelopmentState)
         
@@ -1020,7 +1019,7 @@ def create_backend_development_graph(
     llm_service: EnhancedLLMService,
     memory_service: MemoryService,
     state_service: StateService
-) -> Graph:
+) -> Any:
     """Factory function to create a backend development graph."""
     builder = BackendDevelopmentGraphBuilder(llm_service, memory_service, state_service)
     return builder.build_graph()

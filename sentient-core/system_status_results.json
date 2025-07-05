@@ -1,0 +1,52 @@
+{
+  "timestamp": "2025-07-05T16:25:51.013316",
+  "backend_health": {
+    "status": "\u2705 Online",
+    "response_time": 0.002871,
+    "status_code": 200,
+    "data": {
+      "status": "healthy",
+      "message": "Server is operational"
+    }
+  },
+  "frontend_health": {
+    "status": "\u2705 Online",
+    "response_time": 0.083338,
+    "status_code": 200
+  },
+  "api_endpoints": {
+    "docs": {
+      "status": "\u2705",
+      "status_code": 200,
+      "response_time": 0.011339
+    },
+    "api_state": {
+      "status": "\u2705",
+      "status_code": 200,
+      "response_time": 0.002966
+    },
+    "api_memory": {
+      "status": "\u2705",
+      "status_code": 200,
+      "response_time": 0.001788
+    }
+  },
+  "memory_system": {
+    "storage": "\u2705 Success",
+    "retrieval": "\u2705 Success",
+    "store_response_time": 0.025203,
+    "retrieve_response_time": 0.014022
+  },
+  "agent_system": {
+    "status": "\u2705 Success",
+    "status_code": 200,
+    "response_time": 0.015957,
+    "data": {
+      "success": true,
+      "agent_type": "monitoring_agent",
+      "task": "system_health_check",
+      "result": "Mock execution completed",
+      "execution_time": 0.1
+    }
+  }
+}

@@ -841,7 +841,7 @@ class KnowledgeSynthesisGraphBuilder:
         else:
             return END
     
-    def build_graph(self) -> Graph:
+    def build_graph(self) -> Any:
         """Build and return the knowledge synthesis graph."""
         workflow = StateGraph(KnowledgeSynthesisState)
         
@@ -878,7 +878,7 @@ def create_knowledge_synthesis_graph(
     llm_service: EnhancedLLMService,
     memory_service: MemoryService,
     state_service: StateService
-) -> Graph:
+) -> Any:
     """Factory function to create a knowledge synthesis graph."""
     builder = KnowledgeSynthesisGraphBuilder(llm_service, memory_service, state_service)
     return builder.build_graph()
