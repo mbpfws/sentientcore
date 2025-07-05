@@ -1,36 +1,89 @@
+#!/usr/bin/env python3
+"""
+Minimal test server to verify Build 2 research functionality
+"""
+
+import asyncio
+import sys
+import os
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional
+import uvicorn
 
-app = FastAPI(
-    title="Test Sentient Core API",
-    description="Minimal test API for debugging",
-    version="0.1.0"
-)
+# Add project root to path
+project_root = os.path.abspath(os.path.dirname(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Import our components
+from core.models import AppState, Message
+from core.agents.ultra_orchestrator import UltraOrchestrator
+from core.services.enhanced_llm_service_main import EnhancedLLMService
+
+app = FastAPI(title="Test Server for Build 2")
+
+class TestRequest(BaseModel):
+    message: str
+    workflow_mode: str = "intelligent"
+    research_mode: Optional[str] = None
+
+@app.post("/test/research")
+async def test_research(request: TestRequest):
+    """Test endpoint for Build 2 research functionality"""
+    try:
+        # Create LLM service and orchestrator
+        llm_service = EnhancedLLMService()
+        orchestrator = UltraOrchestrator(llm_service)
+        
+        # Create app state
+        app_state = AppState()
+        
+        # Add research mode prefix if specified
+        message_text = request.message
+        if request.research_mode:
+            research_prefix = {
+                "knowledge": "Please conduct a Knowledge Research",
+                "deep": "Please conduct a Deep Research", 
+                "best_in_class": "Please conduct a Best-in-Class Research"
+            }.get(request.research_mode, "")
+            
+            if research_prefix:
+                message_text = f"{research_prefix}: {message_text}"
+        
+        # Add user message
+        app_state.messages.append(
+            Message(sender="user", content=message_text)
+        )
+        
+        # Process with orchestrator
+        result = await orchestrator.invoke(app_state)
+        
+        # Extract response
+        assistant_messages = [msg for msg in result.messages if msg.sender == "assistant"]
+        if assistant_messages:
+            response_content = assistant_messages[-1].content
+        else:
+            response_content = "No response generated"
+            
+        return {
+            "success": True,
+            "response": response_content,
+            "research_mode": request.research_mode,
+            "message_count": len(result.messages)
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "research_mode": request.research_mode
+        }
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
-    return {"status": "ok", "message": "Test API is running"}
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "message": "Test API is operational"}
-
-@app.get("/test")
-async def test_endpoint():
-    """Test endpoint"""
-    return {"message": "Test endpoint working", "data": {"test": True}}
+    return {"status": "Test server running", "build": "Build 2 - Research Delegation"}
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    print("Starting Build 2 test server...")
+    uvicorn.run(app, host="127.0.0.1", port=8001, log_level="info")

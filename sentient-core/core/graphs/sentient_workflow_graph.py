@@ -1,6 +1,6 @@
 """  
-The Sentient Workflow Graph - Build 1: Core Conversation & Orchestration Loop
-Simplified workflow focusing on basic conversation management and state persistence.
+The Sentient Workflow Graph - Build 2: Introducing the First Specialized Agent & Tool Use
+Workflow with conversation management and research delegation capabilities.
 """
 
 from langgraph.graph import StateGraph, END
@@ -60,7 +60,7 @@ class MockUltraOrchestrator:
 
 
 
-# Create the main workflow graph for Build 1: Core Conversation Loop
+# Create the main workflow graph for Build 2: Conversation & Research Delegation
 workflow = StateGraph(AppState)
 
 # --- Define the graph nodes ---
@@ -70,35 +70,37 @@ async def ultra_orchestrator_node(state: AppState) -> AppState:
     """Async wrapper for the Ultra Orchestrator invoke method."""
     orchestrator = get_ultra_orchestrator()
     
-    # Add conversation history logging for Build 1
+    # Add conversation history logging for Build 2
+    latest_message = state.messages[-1].content if state.messages else "No message"
     state.logs.append(LogEntry(
         source="WorkflowGraph",
-        message=f"Processing user message: '{state.user_prompt}'"
+        message=f"Processing user message: '{latest_message[:100]}...'"
     ))
     
-    # Process through orchestrator
+    # Process through orchestrator (handles both conversation and research delegation)
     result_state = await orchestrator.invoke(state)
     
-    # Log the conversation turn completion
+    # Log the workflow completion
+    action = result_state.next_action or "unknown"
     result_state.logs.append(LogEntry(
         source="WorkflowGraph",
-        message=f"Conversation turn completed. Messages in history: {len(result_state.messages)}"
+        message=f"Workflow completed. Action: {action}, Messages in history: {len(result_state.messages)}"
     ))
     
     return result_state
 
-# Node for the Ultra Orchestrator - the core of Build 1
-workflow.add_node("conversation", ultra_orchestrator_node)
+# Node for the Ultra Orchestrator - the core of Build 2 (handles delegation internally)
+workflow.add_node("orchestrator", ultra_orchestrator_node)
 
-# --- Define the graph edges for Build 1: Simple Conversation Loop ---
+# --- Define the graph edges for Build 2: Orchestrator with Internal Delegation ---
 
-# The workflow starts with the conversation node (Ultra Orchestrator)
-workflow.set_entry_point("conversation")
+# The workflow starts with the orchestrator node (Ultra Orchestrator)
+workflow.set_entry_point("orchestrator")
 
-# For Build 1, we have a simple linear flow: conversation -> end
-# This creates a stateful conversation where each user input goes through
-# the orchestrator and the conversation history is maintained in AppState
-workflow.add_edge("conversation", END)
+# For Build 2, we have a simple linear flow: orchestrator -> end
+# The orchestrator internally handles research delegation to the Research Agent
+# This maintains the stateful conversation while enabling specialized task delegation
+workflow.add_edge("orchestrator", END)
 
 
 # Function to safely compile the workflow

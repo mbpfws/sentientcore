@@ -5,6 +5,7 @@ The master conductor of the multi-agent RAG system.
 
 from core.models import AppState, AgentType, LogEntry, EnhancedTask, Message
 from core.services.enhanced_llm_service_main import EnhancedLLMService
+from core.agents.research_agent import ResearchAgent
 from typing import Dict, Any, cast
 import json
 import re
@@ -21,32 +22,54 @@ class UltraOrchestrator:
 
     def __init__(self, llm_service: EnhancedLLMService):
         self.llm_service = llm_service
+        self.research_agent = ResearchAgent(llm_service)
 
     def _get_system_prompt(self):
         return """
-You are the UltraOrchestrator for Build 1: Core Conversation & Orchestration Loop. You are a helpful, intelligent conversational AI assistant focused on maintaining natural, contextual conversations.
+You are the UltraOrchestrator for Build 2: Introducing the First Specialized Agent & Tool Use. You are an intelligent orchestrator that can handle conversations and delegate research tasks to specialized agents.
 
-**BUILD 1 OBJECTIVES:**
+**BUILD 2 OBJECTIVES:**
 - Maintain conversation history and context
+- Detect when user requests require research or external information
+- Delegate research tasks to the Research Agent
 - Provide helpful, natural responses to user messages
-- Remember what was discussed in the current session
 - Handle basic conversational interactions
 
 **YOUR CORE DIRECTIVES:**
 
-1. **Conversational Management:** Engage in natural conversation with users, maintaining context from previous messages in the session.
-2. **Memory & Context:** Always consider the conversation history when responding. Reference previous messages when relevant.
-3. **Helpful Responses:** Provide informative, helpful responses to user questions and comments.
-4. **Session Awareness:** Keep track of the conversation flow and respond appropriately to follow-up questions.
+1. **Task Recognition:** Analyze user messages to determine if they require:
+   - Simple conversation (continue_conversation)
+   - Research/information gathering (delegate_research)
+
+2. **Research Detection:** Look for keywords and patterns that indicate research needs:
+   - "research", "find information", "what is", "tell me about", "look up"
+   - Questions about facts, current events, comparisons
+   - Requests for recommendations or lists
+   - Any message prefixed with research mode indicators
+
+3. **Conversational Management:** For non-research requests, engage naturally while maintaining context.
+
+4. **Memory & Context:** Always consider conversation history when responding.
 
 **RESPONSE FORMAT:**
 Your entire response MUST be a single, valid JSON object. Do not add any text before or after it.
 
+For RESEARCH requests:
+```json
+{
+  "decision": "delegate_research",
+  "research_query": "<Extract the core research question from user input>",
+  "research_mode": "<knowledge|deep|best_in_class based on complexity>",
+  "language_detected": "<two-letter ISO 639-1 code>"
+}
+```
+
+For CONVERSATION requests:
 ```json
 {
   "decision": "continue_conversation",
-  "conversational_response": "<Your natural, conversational response to the user, maintaining context from conversation history>",
-  "language_detected": "<two-letter ISO 639-1 code, e.g., 'en', 'vi', 'zh'>"
+  "conversational_response": "<Your natural, conversational response>",
+  "language_detected": "<two-letter ISO 639-1 code>"
 }
 ```
 
@@ -86,13 +109,14 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
 
     async def invoke(self, state: AppState) -> AppState:
         """
-        Process user input and provide conversational response for Build 1.
+        Process user input and provide conversational response or delegate to research agent for Build 2.
         """
         print("---ULTRA ORCHESTRATOR: INVOKING---")
         
         # Construct the context for the LLM
         conversation_history = "\n".join([f"{msg.sender}: {msg.content}" for msg in state.messages])
-        context = f"Conversation History:\n{conversation_history}\n\nNumber of turns: {len(state.messages)}"
+        latest_message = state.messages[-1].content if state.messages else ""
+        context = f"Conversation History:\n{conversation_history}\n\nLatest User Message: {latest_message}\n\nNumber of turns: {len(state.messages)}"
 
         # Select a model (Llama 4 Scout for vision, Llama 3.3 70B for text)
         model_name = "meta-llama/llama-4-scout-17b-16e-instruct" if state.image else "llama-3.3-70b-versatile"
@@ -111,20 +135,71 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
             # Clean and parse the JSON response
             cleaned_response = self._clean_json_response(raw_response)
             decision_data = json.loads(cleaned_response)
+            decision = decision_data.get("decision", "continue_conversation")
 
-            # Update the state based on the decision
-            state.messages.append(Message(
-                sender="assistant", 
-                content=decision_data.get("conversational_response", "I'm here to help! How can I assist you?")
-            ))
-            
-            # Store the entire decision object in the state (simplified for Build 1)
+            # Store the decision in state
             state.orchestrator_decision = decision_data
 
-            # Log the conversation turn completion
-            log_message = f"Conversation turn completed. Language: {decision_data.get('language_detected', 'unknown')}"
-            state.logs.append(LogEntry(source="UltraOrchestrator", message=log_message))
-            state.next_action = decision_data.get("decision", "continue_conversation")
+            if decision == "delegate_research":
+                # Extract research parameters
+                research_query = decision_data.get("research_query", latest_message)
+                research_mode = decision_data.get("research_mode", "knowledge")
+                
+                # Log research delegation
+                state.logs.append(LogEntry(
+                    source="UltraOrchestrator", 
+                    message=f"Delegating research task: '{research_query}' (mode: {research_mode})"
+                ))
+                
+                # Delegate to research agent
+                try:
+                    research_result = await self.research_agent.conduct_research(
+                        query=research_query,
+                        research_mode=research_mode
+                    )
+                    
+                    # Add research result to messages
+                    state.messages.append(Message(
+                        sender="assistant",
+                        content=research_result
+                    ))
+                    
+                    state.logs.append(LogEntry(
+                        source="UltraOrchestrator", 
+                        message="Research task completed successfully"
+                    ))
+                    
+                except Exception as research_error:
+                    error_msg = f"Research failed: {str(research_error)}"
+                    state.logs.append(LogEntry(source="UltraOrchestrator", message=error_msg))
+                    state.messages.append(Message(
+                        sender="assistant",
+                        content="I encountered an issue while researching that topic. Could you please try rephrasing your request?"
+                    ))
+            
+            else:  # continue_conversation
+                # Handle as regular conversation
+                conversational_response = decision_data.get(
+                    "conversational_response", 
+                    "I'm here to help! How can I assist you?"
+                )
+                state.messages.append(Message(
+                    sender="assistant", 
+                    content=conversational_response
+                ))
+                
+                state.logs.append(LogEntry(
+                    source="UltraOrchestrator", 
+                    message="Conversation turn completed"
+                ))
+
+            # Set next action and language
+            state.next_action = decision
+            language = decision_data.get('language_detected', 'unknown')
+            state.logs.append(LogEntry(
+                source="UltraOrchestrator", 
+                message=f"Language detected: {language}"
+            ))
 
         except (json.JSONDecodeError, KeyError) as e:
             error_message = f"Error processing LLM response: {e}. Raw response: '{raw_response[:500]}...'"
