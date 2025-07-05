@@ -130,6 +130,10 @@ export default function Home() {
                   <CoreServicesDashboard />
                 </TabsContent>
 
+                <TabsContent value="interactive-workflows" className="space-y-4">
+                  <InteractiveWorkflowDashboard />
+                </TabsContent>
+
                 <TabsContent value="chat" className="space-y-4">
                   <ChatInterface />
                 </TabsContent>
