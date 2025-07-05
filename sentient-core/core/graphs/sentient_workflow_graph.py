@@ -1,6 +1,6 @@
 """  
-The Sentient Workflow Graph - Build 2: Introducing the First Specialized Agent & Tool Use
-Workflow with conversation management and research delegation capabilities.
+The Sentient Workflow Graph - Build 1: The Core Conversation & Orchestration Loop
+Foundational workflow with persistent conversation management and state handling.
 """
 
 from langgraph.graph import StateGraph, END
@@ -18,11 +18,16 @@ def get_llm_service():
     global _llm_service
     if _llm_service is None:
         try:
+            print("Attempting to initialize EnhancedLLMService...")
             _llm_service = EnhancedLLMService()
+            print("✓ EnhancedLLMService initialized successfully")
         except Exception as e:
-            print(f"Warning: Failed to initialize LLM service: {e}")
+            print(f"✗ Failed to initialize LLM service: {e}")
+            import traceback
+            print(f"Full traceback: {traceback.format_exc()}")
             # Create a mock service for testing
             _llm_service = MockLLMService()
+            print("Using MockLLMService as fallback")
     return _llm_service
 
 def get_ultra_orchestrator():
@@ -67,25 +72,27 @@ workflow = StateGraph(AppState)
 
 # Async wrapper for the Ultra Orchestrator
 async def ultra_orchestrator_node(state: AppState) -> AppState:
-    """Async wrapper for the Ultra Orchestrator invoke method."""
+    """Build 1: Core conversation processing with persistent state management."""
     orchestrator = get_ultra_orchestrator()
     
-    # Add conversation history logging for Build 2
+    # Log incoming message for Build 1 conversation tracking
     latest_message = state.messages[-1].content if state.messages else "No message"
     state.logs.append(LogEntry(
-        source="WorkflowGraph",
-        message=f"Processing user message: '{latest_message[:100]}...'"
+        source="Build1_WorkflowGraph",
+        message=f"Build 1: Processing conversation message: '{latest_message[:100]}...'"
     ))
     
-    # Process through orchestrator (handles both conversation and research delegation)
+    # Process through Build 1 orchestrator (simple conversation with context)
     result_state = await orchestrator.invoke(state)
     
-    # Log the workflow completion
-    action = result_state.next_action or "unknown"
+    # Log Build 1 conversation completion
     result_state.logs.append(LogEntry(
-        source="WorkflowGraph",
-        message=f"Workflow completed. Action: {action}, Messages in history: {len(result_state.messages)}"
+        source="Build1_WorkflowGraph",
+        message=f"Build 1: Conversation processed. Total messages: {len(result_state.messages)}, Context maintained: {bool(result_state.conversation_history)}"
     ))
+    
+    # Set next action to end for Build 1 (simple conversation loop)
+    result_state.next_action = "end"
     
     return result_state
 

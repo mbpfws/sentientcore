@@ -46,9 +46,9 @@ class ResearchAgent(BaseAgent):
         """Register web search tools with the LLM service for agentic tooling"""
         try:
             # Register tool functions
-            tool_functions = self.web_search_tools.get_tool_functions()
-            for tool_func in tool_functions:
-                self.llm_service.register_tool(tool_func)
+            agentic_tools = self.web_search_tools.get_tool_functions()
+            for tool in agentic_tools:
+                self.llm_service.register_tool(tool)
             
             self.log_activity(ActivityType.PROCESSING, "Web search tools registered successfully")
         except Exception as e:

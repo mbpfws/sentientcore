@@ -8,6 +8,10 @@ from collections import defaultdict, deque
 from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from .enhanced_llm_service import (
     EnhancedGroqProvider, OpenAIProvider, 

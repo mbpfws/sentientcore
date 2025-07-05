@@ -3,19 +3,55 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TextareaAutosize from 'react-textarea-autosize';
 import ReactMarkdown from 'react-markdown';
 import { ChatService, Message as ApiMessage } from '@/lib/api';
 import { useAppContext } from '@/lib/context/app-context';
-import { Paperclip, X, Image as ImageIcon } from 'lucide-react';
+import { Paperclip, X, Image as ImageIcon, History, Settings, FileText, Zap, Search, BookOpen } from 'lucide-react';
+import { ResearchResults } from './research-results';
+import { VerboseFeedback } from './verbose-feedback';
+import { researchService } from '@/lib/api/research-service';
 
 // Extended from API Message type with UI-specific fields
-interface Message extends Partial<ApiMessage> {
-  sender: 'user' | 'assistant';
+interface Message {
+  id: string;
   content: string;
+  sender: 'user' | 'assistant';
+  timestamp?: string;
+  created_at?: string;
+  images?: {
+    file: File;
+    preview: string;
+  }[];
+  researchMode?: string;
+  isError?: boolean;
+  isLoading?: boolean;
   hasImage?: boolean;
   imageUrl?: string;
-  isLoading?: boolean;
+  researchData?: any;
+}
+
+interface VerboseStep {
+  id: string;
+  type: 'search' | 'synthesis' | 'error' | 'completion';
+  title: string;
+  description: string;
+  status: 'running' | 'completed' | 'error';
+  timestamp: string;
+  duration?: number;
+  details?: {
+    input?: any;
+    output?: any;
+    sources?: string[];
+    tokens_used?: number;
+    model_used?: string;
+    progress?: number;
+  };
+  substeps?: VerboseStep[];
 }
 
 const ChatInterface = () => {
@@ -23,7 +59,11 @@ const ChatInterface = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [researchMode, setResearchMode] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [researchMode, setResearchMode] = useState<'knowledge' | 'deep' | 'best_in_class'>('knowledge');
+  const [activeTab, setActiveTab] = useState<'chat' | 'research' | 'verbose'>('chat');
+  const [verboseSteps, setVerboseSteps] = useState<VerboseStep[]>([]);
+  const [showVerbose, setShowVerbose] = useState<boolean>(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   
@@ -90,6 +130,7 @@ const ChatInterface = () => {
     // Clear input and image
     setInput('');
     handleImageRemove();
+    setVerboseSteps([]);
     
     // Add a loading message placeholder
     const loadingMessage: Message = {
@@ -103,29 +144,109 @@ const ChatInterface = () => {
     setMessages(prev => [...prev, loadingMessage]);
     
     try {
-      // Prepare image data if present
-      let imageData: Uint8Array | undefined;
-      if (currentImage) {
-        imageData = await fileToBytes(currentImage);
+      // Check if this is a research query
+      const isResearchQuery = researchMode && (currentInput.toLowerCase().includes('research') || 
+        currentInput.toLowerCase().includes('search') || 
+        currentInput.toLowerCase().includes('find') ||
+        currentInput.toLowerCase().includes('analyze'));
+
+      if (isResearchQuery && activeWorkflow) {
+         // Start research with verbose feedback
+         setShowVerbose(true);
+         setActiveTab('verbose');
+         
+         // Add initial verbose step
+         const initialStep: VerboseStep = {
+           id: 'init-' + Date.now(),
+           type: 'search',
+           title: 'Initializing Research',
+           description: `Starting ${researchMode} research for: "${currentInput}"`,
+           status: 'running',
+           timestamp: new Date().toISOString()
+         };
+         setVerboseSteps([initialStep]);
+
+         try {
+           // Start research
+           const researchResult = await researchService.startResearch({
+             query: currentInput,
+             mode: researchMode,
+             workflow_id: activeWorkflow
+           });
+
+           // Subscribe to research updates
+           researchService.subscribeToUpdates(researchResult.data.id, (updatedResult) => {
+             // Update verbose steps based on research progress
+             const progressStep: VerboseStep = {
+               id: 'progress-' + Date.now(),
+               type: updatedResult.status === 'searching' ? 'search' : 'synthesis',
+               title: updatedResult.status === 'searching' ? 'Searching Sources' : 'Synthesizing Results',
+               description: `Research progress: ${updatedResult.progress || 0}%`,
+               status: updatedResult.status === 'completed' ? 'completed' : 'running',
+               timestamp: new Date().toISOString(),
+               details: {
+                 progress: updatedResult.progress,
+                 model_used: 'compound-beta'
+               }
+             };
+             
+             setVerboseSteps(prev => {
+               const filtered = prev.filter(step => !step.id.startsWith('progress-'));
+               return [...filtered, progressStep];
+             });
+
+             // If completed, add final message
+             if (updatedResult.status === 'completed' && updatedResult.results) {
+               setMessages(prev => prev.map(msg => 
+                 msg.isLoading ? {
+                   id: updatedResult.id,
+                   sender: 'assistant' as const,
+                   content: updatedResult.results.summary,
+                   created_at: new Date().toISOString(),
+                   researchData: updatedResult
+                 } : msg
+               ));
+               setActiveTab('research');
+             }
+           });
+         } catch (error) {
+           console.error('Research failed:', error);
+           // Add error step
+           const errorStep: VerboseStep = {
+             id: 'error-' + Date.now(),
+             type: 'error',
+             title: 'Research Failed',
+             description: 'Failed to start research process',
+             status: 'error',
+             timestamp: new Date().toISOString()
+           };
+           setVerboseSteps(prev => [...prev, errorStep]);
+         }
+       } else {
+        // Prepare image data if present
+        let imageData: Uint8Array | undefined;
+        if (currentImage) {
+          imageData = await fileToBytes(currentImage);
+        }
+        
+        // Send the message to the backend
+        const response = await ChatService.sendMessage({
+          message: currentInput,
+          workflow_mode: activeWorkflow,
+          research_mode: researchMode || undefined,
+          image_data: imageData
+        });
+        
+        // Replace the loading message with the actual response
+        setMessages(prev => prev.map(msg => 
+          msg.isLoading ? {
+            id: response.id,
+            sender: 'assistant',
+            content: response.content,
+            created_at: response.created_at
+          } : msg
+        ));
       }
-      
-      // Send the message to the backend
-      const response = await ChatService.sendMessage({
-        message: currentInput,
-        workflow_mode: activeWorkflow,
-        research_mode: researchMode || undefined,
-        image_data: imageData
-      });
-      
-      // Replace the loading message with the actual response
-      setMessages(prev => prev.map(msg => 
-        msg.isLoading ? {
-          id: response.id,
-          sender: 'assistant',
-          content: response.content,
-          created_at: response.created_at
-        } : msg
-      ));
       
       // Reset research mode after use
       setResearchMode(null);
@@ -142,6 +263,19 @@ const ChatInterface = () => {
           created_at: new Date().toISOString()
         } : msg
       ));
+      
+      // Add error to verbose steps if active
+       if (showVerbose) {
+         const errorStep: VerboseStep = {
+           id: 'error-' + Date.now(),
+           type: 'error',
+           title: 'Error Occurred',
+           description: 'An error occurred during processing',
+           status: 'error',
+           timestamp: new Date().toISOString()
+         };
+         setVerboseSteps(prev => [...prev, errorStep]);
+       }
     }
   };
 
@@ -217,68 +351,84 @@ const ChatInterface = () => {
         </Button>
       </div>
 
-      {/* Chat messages area */}
-      <div className="flex-grow overflow-y-auto border rounded-md p-4 mb-4">
-        {isLoading && messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-center text-muted-foreground">
-            <div className="text-center">
-              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-              <p>Loading conversation history...</p>
+      {/* Tab navigation and content areas */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <TabsList className="grid w-full grid-cols-3 mb-4">
+          <TabsTrigger value="chat">Chat</TabsTrigger>
+          <TabsTrigger value="research">Research Results</TabsTrigger>
+          <TabsTrigger value="verbose">Verbose Feedback</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="chat" className="flex-grow overflow-y-auto border rounded-md p-4 mb-4">
+          {isLoading && messages.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-center text-muted-foreground">
+              <div className="text-center">
+                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+                <p>Loading conversation history...</p>
+              </div>
             </div>
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-center text-muted-foreground">
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Welcome to Sentient Core</h3>
-              <p>Send a message to start building with the Multi-Agent RAG System</p>
+          ) : messages.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-center text-muted-foreground">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Welcome to Sentient Core</h3>
+                <p>Send a message to start building with the Multi-Agent RAG System</p>
+              </div>
             </div>
-          </div>
-        ) : (
-          messages.map((message) => (
-            <div 
-              key={message.id || `msg_${Math.random()}`}
-              className={`mb-4 ${message.sender === 'user' ? 'flex justify-end' : ''}`}
-            >
-              <Card 
-                className={`p-3 max-w-[80%] ${message.sender === 'user' 
-                  ? 'bg-primary text-primary-foreground ml-auto' 
-                  : message.isLoading 
-                    ? 'bg-muted animate-pulse' 
-                    : 'bg-muted'}`}
+          ) : (
+            messages.map((message) => (
+              <div 
+                key={message.id || `msg_${Math.random()}`}
+                className={`mb-4 ${message.sender === 'user' ? 'flex justify-end' : ''}`}
               >
-                {message.isLoading ? (
-                  <div className="flex items-center gap-1">
-                    <span className="animate-bounce">●</span>
-                    <span className="animate-bounce delay-100">●</span>
-                    <span className="animate-bounce delay-200">●</span>
-                  </div>
-                ) : (
-                  <div>
-                    {message.hasImage && message.imageUrl && (
-                      <div className="mb-2">
-                        <img 
-                          src={message.imageUrl} 
-                          alt="Attached image" 
-                          className="max-w-xs max-h-48 rounded-md object-cover"
-                        />
-                      </div>
-                    )}
-                    <ReactMarkdown>
-                      {message.content}
-                    </ReactMarkdown>
-                  </div>
-                )}
-                {message.created_at && !message.isLoading && (
-                  <div className="text-xs mt-2 opacity-70">
-                    {new Date(message.created_at).toLocaleTimeString()}
-                  </div>
-                )}
-              </Card>
-            </div>
-          ))
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+                <Card 
+                  className={`p-3 max-w-[80%] ${message.sender === 'user' 
+                    ? 'bg-primary text-primary-foreground ml-auto' 
+                    : message.isLoading 
+                      ? 'bg-muted animate-pulse' 
+                      : 'bg-muted'}`}
+                >
+                  {message.isLoading ? (
+                    <div className="flex items-center gap-1">
+                      <span className="animate-bounce">●</span>
+                      <span className="animate-bounce delay-100">●</span>
+                      <span className="animate-bounce delay-200">●</span>
+                    </div>
+                  ) : (
+                    <div>
+                      {message.hasImage && message.imageUrl && (
+                        <div className="mb-2">
+                          <img 
+                            src={message.imageUrl} 
+                            alt="Attached image" 
+                            className="max-w-xs max-h-48 rounded-md object-cover"
+                          />
+                        </div>
+                      )}
+                      <ReactMarkdown>
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+                  {message.created_at && !message.isLoading && (
+                    <div className="text-xs mt-2 opacity-70">
+                      {new Date(message.created_at).toLocaleTimeString()}
+                    </div>
+                  )}
+                </Card>
+              </div>
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </TabsContent>
+        
+        <TabsContent value="research" className="flex-1 overflow-hidden">
+          <ResearchResults />
+        </TabsContent>
+        
+        <TabsContent value="verbose" className="flex-1 overflow-hidden">
+          <VerboseFeedback steps={verboseSteps} />
+        </TabsContent>
+      </Tabs>
 
       {/* Image preview */}
       {imagePreview && (

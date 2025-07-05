@@ -11,7 +11,7 @@ from dataclasses import asdict
 import logging
 
 from ..services.search_service import SearchService, SearchQuery, SearchType, SearchProvider
-from ..services.enhanced_llm_service_main import ToolFunction
+from ..services.enhanced_llm_service_main import AgenticTool
 
 logger = logging.getLogger(__name__)
 
@@ -450,25 +450,97 @@ class WebSearchTools:
         
         return insights
     
-    def get_tool_functions(self) -> List[ToolFunction]:
+    def get_tool_functions(self) -> List[AgenticTool]:
         """Get tool functions for registration with LLM service"""
         return [
-            ToolFunction(
+            AgenticTool(
                 name="web_search",
-                function=self.web_search,
                 description="Search the web for information using multiple search providers",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search query to execute"
+                        },
+                        "max_results": {
+                            "type": "integer",
+                            "description": "Maximum number of results to return (default: 10)",
+                            "default": 10
+                        }
+                    },
+                    "required": ["query"]
+                },
+                function=self.web_search,
                 async_function=True
             ),
-            ToolFunction(
+            AgenticTool(
                 name="technical_search",
-                function=self.technical_search,
                 description="Specialized search for technical content and documentation",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The technical search query"
+                        },
+                        "technology": {
+                            "type": "string",
+                            "description": "Specific technology or framework to focus on"
+                        },
+                        "content_type": {
+                            "type": "string",
+                            "enum": ["documentation", "code", "tutorials", "best_practices"],
+                            "description": "Type of technical content to search for",
+                            "default": "documentation"
+                        },
+                        "max_results": {
+                            "type": "integer",
+                            "description": "Maximum number of results to return (default: 8)",
+                            "default": 8
+                        }
+                    },
+                    "required": ["query"]
+                },
+                function=self.technical_search,
                 async_function=True
             ),
-            ToolFunction(
+            AgenticTool(
                 name="research_search",
+                description="Comprehensive research search with AI summarization and insights",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The research query"
+                        },
+                        "research_depth": {
+                            "type": "string",
+                            "enum": ["basic", "advanced", "comprehensive"],
+                            "description": "Depth of research to perform",
+                            "default": "advanced"
+                        },
+                        "focus_areas": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Specific areas or aspects to focus on"
+                        },
+                        "time_range": {
+                            "type": "string",
+                            "enum": ["day", "week", "month", "year", "all"],
+                            "description": "Time range for search results",
+                            "default": "month"
+                        },
+                        "max_results": {
+                            "type": "integer",
+                            "description": "Maximum number of results to return (default: 15)",
+                            "default": 15
+                        }
+                    },
+                    "required": ["query"]
+                },
                 function=self.research_search,
-                description="Comprehensive research search with AI summarization",
                 async_function=True
             )
         ]

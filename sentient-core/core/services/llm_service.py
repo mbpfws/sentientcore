@@ -33,27 +33,69 @@ class LLMProvider(ABC):
         yield ""
 
 class GroqProvider(LLMProvider):
-    """LLM provider for Groq models."""
+    """LLM provider for Groq models with agentic tooling support."""
 
     def __init__(self):
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             raise ValueError("GROQ_API_KEY environment variable not set.")
-        super().__init__(Groq(api_key=api_key), ["llama3-8b-8192", "mixtral-8x7b-32768"])
+        # Updated model list to include compound-beta models for agentic tooling
+        super().__init__(Groq(api_key=api_key), [
+            "llama3-8b-8192", 
+            "mixtral-8x7b-32768",
+            "compound-beta",
+            "compound-beta-mini"
+        ])
+        self.registered_tools = []
 
     async def generate(self, model: str, messages: List[Dict[str, Any]], **kwargs) -> str:
+        # Add tools to kwargs if available and model supports them
+        if self.registered_tools and model in ["compound-beta", "compound-beta-mini"]:
+            kwargs["tools"] = self.registered_tools
+            kwargs["tool_choice"] = "auto"
+        
         response = await asyncio.to_thread(
             self.client.chat.completions.create, model=model, messages=messages, **kwargs
         )
         return response.choices[0].message.content
 
     async def generate_stream(self, model: str, messages: List[Dict[str, Any]], **kwargs) -> AsyncGenerator[str, None]:
+        # Add tools to kwargs if available and model supports them
+        if self.registered_tools and model in ["compound-beta", "compound-beta-mini"]:
+            kwargs["tools"] = self.registered_tools
+            kwargs["tool_choice"] = "auto"
+        
         stream = await asyncio.to_thread(
             self.client.chat.completions.create, model=model, messages=messages, stream=True, **kwargs
         )
         for chunk in stream:
             if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
+    
+    def register_tool(self, tool_definition: Dict[str, Any]):
+        """Register a tool for agentic tooling."""
+        if tool_definition not in self.registered_tools:
+            self.registered_tools.append(tool_definition)
+    
+    async def generate_with_tools(self, model: str, messages: List[Dict[str, Any]], **kwargs):
+        """Generate response with tool calling capabilities."""
+        if not self.registered_tools or model not in ["compound-beta", "compound-beta-mini"]:
+            # Fallback to regular generation
+            return await self.generate(model, messages, **kwargs)
+        
+        kwargs["tools"] = self.registered_tools
+        kwargs["tool_choice"] = "auto"
+        
+        response = await asyncio.to_thread(
+            self.client.chat.completions.create, model=model, messages=messages, **kwargs
+        )
+        
+        # Handle tool calls if present
+        if response.choices[0].message.tool_calls:
+            # For now, return the response as-is for the research agent to handle
+            return response
+        
+        return response.choices[0].message.content
 
 class OpenAIProvider(LLMProvider):
     """LLM provider for OpenAI models."""

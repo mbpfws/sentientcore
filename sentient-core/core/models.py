@@ -131,6 +131,9 @@ class AppState(BaseModel):
     image: Optional[bytes] = None
     language: str = "en"
     
+    # Build 1: Persistent Conversation State
+    conversation_history: List[str] = Field(default_factory=list)
+    
     # Task Management
     tasks: List[EnhancedTask] = Field(default_factory=list)
     task_to_run_id: Optional[str] = None

@@ -40,6 +40,7 @@ class ActivityType(str, Enum):
     TASK_PROGRESS = "task_progress"
     TASK_COMPLETE = "task_complete"
     STATUS_CHANGE = "status_change"
+    ERROR = "error"
     ERROR_OCCURRED = "error_occurred"
     COMMUNICATION_SENT = "communication_sent"
     COMMUNICATION_RECEIVED = "communication_received"
