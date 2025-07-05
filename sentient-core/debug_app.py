@@ -49,7 +49,7 @@ try:
 except Exception as e:
     print(f"Error importing core models: {e}")
 
-# Try importing one router at a time
+# Try importing routers one at a time
 try:
     print("Importing agents router...")
     from app.api.routers import agents
@@ -58,4 +58,29 @@ try:
 except Exception as e:
     print(f"Error importing agents router: {e}")
 
+try:
+    print("Importing workflows router...")
+    from app.api.routers import workflows
+    app.include_router(workflows.router, prefix="/api")
+    print("Workflows router imported successfully")
+except Exception as e:
+    print(f"Error importing workflows router: {e}")
+
+try:
+    print("Importing chat router...")
+    from app.api.routers import chat
+    app.include_router(chat.router, prefix="/api")
+    print("Chat router imported successfully")
+except Exception as e:
+    print(f"Error importing chat router: {e}")
+
+try:
+    print("Importing core_services router...")
+    from app.api.routers import core_services
+    app.include_router(core_services.router, prefix="/api")
+    print("Core services router imported successfully")
+except Exception as e:
+    print(f"Error importing core_services router: {e}")
+
 print("Debug app setup complete")
+print("All routers loaded successfully!")
