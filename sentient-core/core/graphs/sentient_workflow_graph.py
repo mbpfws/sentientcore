@@ -60,7 +60,7 @@ class MockUltraOrchestrator:
 
 
 
-# Create the main workflow graph
+# Create the main workflow graph for Build 1: Core Conversation Loop
 workflow = StateGraph(AppState)
 
 # --- Define the graph nodes ---
@@ -69,61 +69,36 @@ workflow = StateGraph(AppState)
 async def ultra_orchestrator_node(state: AppState) -> AppState:
     """Async wrapper for the Ultra Orchestrator invoke method."""
     orchestrator = get_ultra_orchestrator()
-    return await orchestrator.invoke(state)
-
-# Sync wrapper for the Monitoring Agent
-def monitoring_agent_node(state: AppState) -> AppState:
-    """Wrapper for the Monitoring Agent invoke method."""
-    agent = get_monitoring_agent()
-    return agent.invoke(state)
-
-# Node for the Ultra Orchestrator to make decisions
-workflow.add_node("ultra_orchestrator", ultra_orchestrator_node)
-
-# Node for the Monitoring Agent to observe and log
-workflow.add_node("monitor", monitoring_agent_node)
-
-# --- Define a routing function ---
-def route_from_monitor(state: AppState) -> str:
-    """
-    Determines the next step after monitoring based on the orchestrator's decision.
-    """
-    decision = getattr(state, 'next_action', 'end')
-    print(f"---ROUTING from Monitor. Decision: {decision}---")
     
-    if decision == "create_plan":
-        # In future phases, this will route to the appropriate agent (e.g., "research").
-        # For now, we end the workflow to inspect the plan.
-        return "end"
-    elif decision == "monitor":
-        return "monitor"
-    elif decision == "orchestrate":
-        return "ultra_orchestrator"
+    # Add conversation history logging for Build 1
+    state.logs.append(LogEntry(
+        source="WorkflowGraph",
+        message=f"Processing user message: '{state.user_input}'"
+    ))
     
-    # For conversational decisions, we end the loop and await the next user input.
-    return "end"
+    # Process through orchestrator
+    result_state = await orchestrator.invoke(state)
+    
+    # Log the conversation turn completion
+    result_state.logs.append(LogEntry(
+        source="WorkflowGraph",
+        message=f"Conversation turn completed. Messages in history: {len(result_state.messages)}"
+    ))
+    
+    return result_state
 
+# Node for the Ultra Orchestrator - the core of Build 1
+workflow.add_node("conversation", ultra_orchestrator_node)
 
-# --- Define the graph edges ---
+# --- Define the graph edges for Build 1: Simple Conversation Loop ---
 
-# The workflow starts with the Ultra Orchestrator
-workflow.set_entry_point("ultra_orchestrator")
+# The workflow starts with the conversation node (Ultra Orchestrator)
+workflow.set_entry_point("conversation")
 
-# After the orchestrator makes a decision, the monitor observes it
-workflow.add_edge("ultra_orchestrator", "monitor")
-
-# After monitoring, route to the next appropriate step or end.
-workflow.add_conditional_edges(
-    "monitor",
-    route_from_monitor,
-    {
-        # In future phases, we will add paths to other agents here
-        # "research": "research_node",
-        "monitor": "monitor",
-        "ultra_orchestrator": "ultra_orchestrator", 
-        "end": END,
-    },
-)
+# For Build 1, we have a simple linear flow: conversation -> end
+# This creates a stateful conversation where each user input goes through
+# the orchestrator and the conversation history is maintained in AppState
+workflow.add_edge("conversation", END)
 
 
 # Function to safely compile the workflow
