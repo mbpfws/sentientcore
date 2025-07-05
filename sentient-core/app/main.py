@@ -24,7 +24,7 @@ from core.orchestration import (
     shutdown_workflow_orchestrator
 )
 from core.services.state_service import StateService
-from core.services.enhanced_llm_service import EnhancedLLMService
+from core.services.llm_service import EnhancedLLMService
 import time
 import json
 import asyncio

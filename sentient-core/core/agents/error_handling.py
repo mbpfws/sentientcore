@@ -18,6 +18,15 @@ from ..models import LogEntry
 
 logger = logging.getLogger(__name__)
 
+class AgentError(Exception):
+    """Base exception class for agent-related errors"""
+    def __init__(self, agent_id: str, error_type: str, message: str, context: Dict[str, Any] = None):
+        self.agent_id = agent_id
+        self.error_type = error_type
+        self.message = message
+        self.context = context or {}
+        super().__init__(f"Agent {agent_id}: {message}")
+
 class ErrorSeverity(str, Enum):
     """Error severity levels"""
     LOW = "low"

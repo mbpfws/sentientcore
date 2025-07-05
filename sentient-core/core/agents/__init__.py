@@ -13,7 +13,7 @@ from .factory import AgentFactory, AgentConfiguration, AgentCreationError, Agent
 from .registry import AgentRegistry, AgentProfile, RegistrationStatus
 from .communication import MessageBus, AgentMessage, MessageType, MessagePriority
 from .error_handling import (
-    AgentError, AgentTimeoutError, AgentResourceError,
+    AgentError,
     ErrorHandler, ErrorSeverity, ErrorCategory, RecoveryStrategy,
     ErrorInfo, RecoveryAction, handle_agent_errors
 )
@@ -61,8 +61,6 @@ __all__ = [
     'MessageType',
     'MessagePriority',
     'AgentError',
-    'AgentTimeoutError',
-    'AgentResourceError',
     'ErrorHandler',
     'ErrorSeverity',
     'ErrorCategory',

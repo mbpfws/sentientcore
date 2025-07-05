@@ -21,7 +21,7 @@ from .coding_agent import CodingAgent
 from .monitoring_agent import MonitoringAgent
 
 from ..services.state_service import StateService
-from ..services.enhanced_llm_service import EnhancedLLMService
+from ..services.llm_service import EnhancedLLMService
 from ..models import AppState, Message, EnhancedTask, TaskStatus, LogEntry
 
 logger = logging.getLogger(__name__)

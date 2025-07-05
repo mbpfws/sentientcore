@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from ..models import AppState, TaskStatus, AgentType, SessionState
 from ..agents.ultra_orchestrator import UltraOrchestrator
 from ..agents.monitoring_agent import MonitoringAgent
-from ..services.enhanced_llm_service import EnhancedLLMService
+from ..services.llm_service import EnhancedLLMService
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)

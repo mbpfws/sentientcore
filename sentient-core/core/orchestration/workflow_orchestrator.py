@@ -12,7 +12,7 @@ from enum import Enum
 
 from ..agents.integration import AgentSystemIntegration, get_agent_system
 from ..services.state_service import StateService
-from ..services.enhanced_llm_service import EnhancedLLMService
+from ..services.llm_service import EnhancedLLMService
 from ..models import AppState, Message, EnhancedTask, TaskStatus, LogEntry
 from ..graphs.graph_integration_manager import GraphIntegrationManager, create_graph_integration_manager, GraphType
 
