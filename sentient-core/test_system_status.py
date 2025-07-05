@@ -12,7 +12,7 @@ from typing import Dict, Any
 
 class SystemStatusDashboard:
     def __init__(self):
-        self.backend_url = "http://localhost:8000"
+        self.backend_url = "http://127.0.0.1:8000"
         self.frontend_url = "http://localhost:3000"
         
     def check_backend_health(self) -> Dict[str, Any]:
