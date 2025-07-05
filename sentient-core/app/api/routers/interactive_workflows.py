@@ -63,15 +63,8 @@ def get_breakdown_engine() -> InteractiveTaskBreakdownEngine:
     state_manager = get_state_manager()
     return InteractiveTaskBreakdownEngine(state_manager)
 
-# Pydantic models for API requests/responses
+# Additional local models for specific endpoints
 from pydantic import BaseModel
-
-class CreateWorkflowRequest(BaseModel):
-    title: str
-    description: str
-    task_id: Optional[str] = None
-    auto_start: bool = False
-    orchestration_mode: str = "semi_automatic"  # manual, semi_automatic, automatic, guided
 
 class StartWorkflowRequest(BaseModel):
     workflow_id: str
@@ -82,14 +75,6 @@ class ApprovalRequest(BaseModel):
     decision: str  # approve, reject, modify
     feedback: Optional[str] = None
     modifications: Optional[Dict[str, Any]] = None
-
-class WorkflowControlRequest(BaseModel):
-    workflow_id: str
-    action: str  # pause, resume, cancel, restart
-
-class TaskBreakdownRequest(BaseModel):
-    task: Dict[str, Any]  # EnhancedTask as dict
-    strategy: Optional[str] = None  # auto-detect if not provided
 
 @router.post("/create", response_model=WorkflowResponse, summary="Create a new interactive workflow")
 async def create_workflow(
@@ -109,9 +94,9 @@ async def create_workflow(
         
         # Create workflow
         workflow_id = await state_manager.create_workflow(
-            title=request.title,
+            title=request.name,
             description=request.description,
-            task_id=request.task_id
+            task_id=getattr(request, 'task_id', None)
         )
         
         # Auto-start if requested
@@ -122,7 +107,7 @@ async def create_workflow(
         
         return WorkflowResponse(
             workflow_id=workflow_id,
-            title=request.title,
+            name=request.name,
             description=request.description,
             status=workflow_state.status if workflow_state else InteractiveWorkflowStatus.CREATED,
             orchestration_mode=mode,
@@ -131,7 +116,7 @@ async def create_workflow(
             current_step_index=workflow_state.current_step_index if workflow_state else 0,
             total_steps=len(workflow_state.steps) if workflow_state else 0,
             progress_percentage=workflow_state.get_progress_percentage() if workflow_state else 0.0,
-            task_id=request.task_id
+            metadata=getattr(request, 'metadata', None)
         )
         
     except Exception as e:

@@ -542,6 +542,74 @@ class EnhancedLLMService:
         
         return dict(capability_map)
 
+    def invoke(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        image_bytes: Optional[bytes] = None,
+        stream: bool = False,
+        **kwargs,
+    ) -> Union[Awaitable[str], AsyncGenerator[str, None]]:
+        """Primary method to interact with the LLM service - compatibility method."""
+        prompt = f"{system_prompt}\n\nUser: {user_prompt}"
+        
+        if stream:
+            # For streaming, we need to return an async generator
+            return self._stream_invoke(prompt, model, image_bytes, **kwargs)
+        else:
+            # For non-streaming, return an awaitable
+            return self.generate(prompt, model, image_bytes=image_bytes, **kwargs)
+    
+    async def _stream_invoke(self, prompt: str, model: str, image_bytes: Optional[bytes] = None, **kwargs) -> AsyncGenerator[str, None]:
+        """Internal method for streaming invoke."""
+        # Get provider for the model
+        provider_name = self._get_provider_for_model(model)
+        
+        # Construct messages
+        messages = self._construct_multimodal_messages(prompt, image_bytes)
+        
+        try:
+            provider = self.providers[provider_name]
+            async for chunk in provider.generate_stream(model, messages, **kwargs):
+                yield chunk
+        except Exception as e:
+            self._track_error(provider_name, "streaming_error", str(e))
+            yield f"Error: {str(e)}"
+    
+    def invoke_sync(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        image_bytes: Optional[bytes] = None,
+        stream: bool = False,
+        **kwargs,
+    ) -> str:
+        """Synchronous wrapper for the invoke method."""
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If we're already in an async context, create a new thread
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        asyncio.run, 
+                        self.invoke(system_prompt, user_prompt, model, image_bytes, stream, **kwargs)
+                    )
+                    return future.result()
+            else:
+                # If no loop is running, we can use asyncio.run
+                return asyncio.run(
+                    self.invoke(system_prompt, user_prompt, model, image_bytes, stream, **kwargs)
+                )
+        except RuntimeError:
+            # Fallback: create a new event loop
+            return asyncio.run(
+                self.invoke(system_prompt, user_prompt, model, image_bytes, stream, **kwargs)
+            )
+
 # Global instance
 _enhanced_llm_service = None
 
