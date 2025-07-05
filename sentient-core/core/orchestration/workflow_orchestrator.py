@@ -14,6 +14,7 @@ from ..agents.integration import AgentSystemIntegration, get_agent_system
 from ..services.state_service import StateService
 from ..services.enhanced_llm_service import EnhancedLLMService
 from ..models import AppState, Message, EnhancedTask, TaskStatus, LogEntry
+from ..graphs.graph_integration_manager import GraphIntegrationManager, create_graph_integration_manager, GraphType
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,13 @@ class WorkflowOrchestrator:
         self.state_service = state_service
         self.llm_service = llm_service
         self.agent_system: Optional[AgentSystemIntegration] = None
+        
+        # Initialize graph integration manager
+        self.graph_integration_manager = create_graph_integration_manager(
+            llm_service=llm_service,
+            state_service=state_service
+        )
+        
         self.initialized = False
     
     async def initialize(self) -> bool:
@@ -345,6 +353,200 @@ Keep the response concise and focused.
             task["research_mode"] = research_mode
         
         return tasks
+    
+    async def execute_end_to_end_workflow(self, 
+                                        user_input: str,
+                                        session_id: str,
+                                        workflow_type: str = "full") -> Dict[str, Any]:
+        """Execute an end-to-end workflow using specialized graphs.
+        
+        Args:
+            user_input: The user's request
+            session_id: Session identifier for tracking
+            workflow_type: Type of workflow (full, research_only, development_only)
+            
+        Returns:
+            Dictionary with workflow results, artifacts, and status
+        """
+        if not self.initialized:
+            logger.error("Workflow orchestrator not initialized")
+            return {"success": False, "error": "System not initialized"}
+        
+        try:
+            logger.info(f"Executing end-to-end workflow for session {session_id}")
+            
+            # Create workflow definition based on type
+            if workflow_type == "full":
+                workflow_definition = self.graph_integration_manager.create_end_to_end_workflow(user_input)
+            elif workflow_type == "research_only":
+                workflow_definition = [
+                    {
+                        "graph_type": GraphType.ORCHESTRATOR.value,
+                        "initial_state": {
+                            "conversation_context": {
+                                "user_input": user_input,
+                                "conversation_history": []
+                            }
+                        },
+                        "execution_id": "orchestrator_research"
+                    },
+                    {
+                        "graph_type": GraphType.RESEARCH.value,
+                        "initial_state": {
+                            "research_query": user_input,
+                            "search_parameters": {"max_results": 10}
+                        },
+                        "execution_id": "research_only",
+                        "dependencies": ["orchestrator_research"]
+                    }
+                ]
+            elif workflow_type == "development_only":
+                workflow_definition = [
+                    {
+                        "graph_type": GraphType.PROJECT_ARCHITECTURE.value,
+                        "initial_state": {
+                            "requirements": {"user_request": user_input}
+                        },
+                        "execution_id": "architecture_dev"
+                    },
+                    {
+                        "graph_type": GraphType.FRONTEND_DEVELOPMENT.value,
+                        "initial_state": {
+                            "requirements": {"user_request": user_input}
+                        },
+                        "execution_id": "frontend_dev",
+                        "dependencies": ["architecture_dev"]
+                    },
+                    {
+                        "graph_type": GraphType.BACKEND_DEVELOPMENT.value,
+                        "initial_state": {
+                            "requirements": {"user_request": user_input}
+                        },
+                        "execution_id": "backend_dev",
+                        "dependencies": ["architecture_dev"]
+                    }
+                ]
+            else:
+                workflow_definition = self.graph_integration_manager.create_end_to_end_workflow(user_input)
+            
+            # Execute the workflow
+            results = self.graph_integration_manager.execute_workflow(
+                session_id=session_id,
+                workflow_definition=workflow_definition
+            )
+            
+            # Process results and create response
+            response = {
+                "success": True,
+                "session_id": session_id,
+                "workflow_type": workflow_type,
+                "execution_results": [],
+                "artifacts": {},
+                "summary": {},
+                "logs": []
+            }
+            
+            # Process each execution result
+            for result in results:
+                execution_info = {
+                    "graph_type": result.graph_type.value,
+                    "execution_id": result.execution_id,
+                    "status": result.status.value,
+                    "duration_seconds": result.duration_seconds,
+                    "outputs": result.outputs
+                }
+                response["execution_results"].append(execution_info)
+                
+                # Collect artifacts from outputs
+                if result.outputs:
+                    response["artifacts"][result.graph_type.value] = result.outputs
+                
+                # Add to logs
+                response["logs"].append({
+                    "source": f"Graph: {result.graph_type.value}",
+                    "message": f"Execution {result.status.value} in {result.duration_seconds:.2f}s",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            
+            # Get session summary
+            session_summary = self.graph_integration_manager.get_session_summary(session_id)
+            response["summary"] = session_summary
+            
+            # Create user-friendly messages
+            messages = []
+            
+            # Add orchestrator response if available
+            if "orchestrator" in response["artifacts"]:
+                orchestrator_output = response["artifacts"]["orchestrator"]
+                if "conversation_context" in orchestrator_output:
+                    messages.append({
+                        "sender": "assistant",
+                        "content": "🤖 **Workflow Orchestration Complete**\n\nI've successfully coordinated the multi-agent workflow for your request.",
+                        "image": None
+                    })
+            
+            # Add research results if available
+            if "research" in response["artifacts"]:
+                research_output = response["artifacts"]["research"]
+                if "synthesized_report" in research_output:
+                    report = research_output["synthesized_report"]
+                    messages.append({
+                        "sender": "assistant",
+                        "content": f"📚 **Research Results**\n\n{report.get('summary', 'Research completed successfully.')}",
+                        "image": None
+                    })
+            
+            # Add architecture results if available
+            if "project_architecture" in response["artifacts"]:
+                arch_output = response["artifacts"]["project_architecture"]
+                if "architecture_design" in arch_output:
+                    messages.append({
+                        "sender": "assistant",
+                        "content": "🏗️ **Architecture Design**\n\nProject architecture has been designed and documented.",
+                        "image": None
+                    })
+            
+            # Add development results if available
+            if "frontend_development" in response["artifacts"] or "backend_development" in response["artifacts"]:
+                messages.append({
+                    "sender": "assistant",
+                    "content": "💻 **Development Phase**\n\nFrontend and backend components have been developed.",
+                    "image": None
+                })
+            
+            # Add build results if available
+            if "build_execution" in response["artifacts"]:
+                build_output = response["artifacts"]["build_execution"]
+                if "build_artifacts" in build_output:
+                    messages.append({
+                        "sender": "assistant",
+                        "content": "🔨 **Build & Deployment**\n\nProject has been built and deployment artifacts are ready.",
+                        "image": None
+                    })
+            
+            response["messages"] = messages
+            response["tasks"] = []  # Tasks are handled by graphs
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error in end-to-end workflow: {e}")
+            return {
+                "success": False,
+                "error": f"End-to-end workflow error: {str(e)}",
+                "session_id": session_id,
+                "messages": [{
+                    "sender": "assistant",
+                    "content": f"I apologize, but I encountered an error during the workflow execution: {str(e)}",
+                    "image": None
+                }],
+                "tasks": [],
+                "logs": [{
+                    "source": "End-to-End Workflow",
+                    "message": f"Error: {str(e)}",
+                    "timestamp": datetime.utcnow().isoformat()
+                }]
+            }
     
     def _create_error_response(self, error_message: str) -> Dict[str, Any]:
         """Create a standardized error response"""

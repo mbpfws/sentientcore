@@ -107,15 +107,27 @@ def render_sidebar():
         st.header("🤖 Multi-Agent RAG System")
         
         # Workflow mode selection
-        mode_options = ["intelligent", "multi_agent", "legacy"]
+        mode_options = ["intelligent", "multi_agent", "end_to_end", "legacy"]
         current_index = mode_options.index(st.session_state.workflow_mode) if st.session_state.workflow_mode in mode_options else 0
         
         st.session_state.workflow_mode = st.selectbox(
             "Workflow Mode", 
             mode_options,
             index=current_index,
-            help="Select workflow: Intelligent (natural language orchestration), Multi-Agent RAG, or Legacy mode"
+            help="Select workflow: Intelligent (natural language), Multi-Agent RAG, End-to-End (full pipeline), or Legacy mode"
         )
+        
+        # End-to-end workflow type selection
+        if st.session_state.workflow_mode == "end_to_end":
+            if "end_to_end_type" not in st.session_state:
+                st.session_state.end_to_end_type = "full"
+            
+            st.session_state.end_to_end_type = st.selectbox(
+                "End-to-End Type",
+                ["full", "research_only", "development_only"],
+                index=["full", "research_only", "development_only"].index(st.session_state.end_to_end_type),
+                help="Full: Complete pipeline, Research: Research + Knowledge only, Development: Architecture + Development only"
+            )
         
         st.divider()
         
@@ -463,39 +475,96 @@ async def handle_workflow_execution(user_input: str, uploaded_image: bytes = Non
         
         # Process through orchestrator
         with st.spinner(f"Processing with {st.session_state.workflow_mode} workflow..."):
-            result = await orchestrator.execute_workflow(
-                user_input=user_input,
-                workflow_mode=st.session_state.workflow_mode,
-                research_mode=st.session_state.research_mode,
-                image_data=uploaded_image
+            if st.session_state.workflow_mode == "end_to_end":
+                # Use the new end-to-end workflow
+                workflow_type = getattr(st.session_state, 'end_to_end_type', 'full')
+                session_id = f"session_{int(time.time())}"
+                
+                result = await orchestrator.execute_end_to_end_workflow(
+                    user_input=user_input,
+                    session_id=session_id,
+                    workflow_type=workflow_type
+                )
+            else:
+                # Use existing workflow modes
+                result = await orchestrator.execute_workflow(
+                    user_input=user_input,
+                    workflow_mode=st.session_state.workflow_mode,
+                    research_mode=st.session_state.research_mode,
+                    image_data=uploaded_image
+                )
+        
+        # Handle response based on workflow mode
+        if st.session_state.workflow_mode == "end_to_end":
+            # Handle end-to-end workflow results
+            if result.get("success", False):
+                # Add messages from the workflow
+                if "messages" in result:
+                    for msg_data in result["messages"]:
+                        st.session_state.app_state.messages.append(
+                            Message(
+                                sender=msg_data.get("sender", "assistant"),
+                                content=msg_data.get("content", "Workflow completed."),
+                                image=msg_data.get("image")
+                            )
+                        )
+                
+                # Add execution results as logs
+                if "execution_results" in result:
+                    for exec_result in result["execution_results"]:
+                        log_entry = LogEntry(
+                            source=f"Graph: {exec_result.get('graph_type', 'Unknown')}",
+                            message=f"Status: {exec_result.get('status', 'Unknown')} ({exec_result.get('duration_seconds', 0):.2f}s)"
+                        )
+                        st.session_state.app_state.logs.append(log_entry)
+                
+                # Store artifacts in session state for later access
+                if "artifacts" in result:
+                    if "workflow_artifacts" not in st.session_state:
+                        st.session_state.workflow_artifacts = {}
+                    st.session_state.workflow_artifacts.update(result["artifacts"])
+                
+                # Add workflow logs
+                if "logs" in result:
+                    for log_data in result["logs"]:
+                        log_entry = LogEntry(
+                            source=log_data.get("source", "End-to-End Workflow"),
+                            message=log_data.get("message", "")
+                        )
+                        st.session_state.app_state.logs.append(log_entry)
+            else:
+                # Handle workflow error
+                error_msg = result.get("error", "End-to-end workflow failed")
+                st.session_state.app_state.messages.append(
+                    Message(sender="assistant", content=f"❌ **Workflow Error**: {error_msg}")
+                )
+        else:
+            # Handle traditional workflow results
+            response_content = result.get("response", "Request processed successfully.")
+            st.session_state.app_state.messages.append(
+                Message(sender="assistant", content=response_content)
             )
-        
-        # Add response message
-        response_content = result.get("response", "Request processed successfully.")
-        st.session_state.app_state.messages.append(
-            Message(sender="assistant", content=response_content)
-        )
-        
-        # Add tasks if any were created
-        if "tasks" in result:
-            for task_data in result["tasks"]:
-                task = EnhancedTask(
-                    id=task_data.get("id", f"task_{len(st.session_state.app_state.tasks) + 1}"),
-                    description=task_data.get("description", "Task"),
-                    status=TaskStatus(task_data.get("status", "pending")),
-                    agent=task_data.get("agent", "orchestrator"),
-                    result=task_data.get("result")
-                )
-                st.session_state.app_state.tasks.append(task)
-        
-        # Add log entries if any
-        if "logs" in result:
-            for log_data in result["logs"]:
-                log_entry = LogEntry(
-                    source=log_data.get("source", "orchestrator"),
-                    message=log_data.get("message", "")
-                )
-                st.session_state.app_state.logs.append(log_entry)
+            
+            # Add tasks if any were created
+            if "tasks" in result:
+                for task_data in result["tasks"]:
+                    task = EnhancedTask(
+                        id=task_data.get("id", f"task_{len(st.session_state.app_state.tasks) + 1}"),
+                        description=task_data.get("description", "Task"),
+                        status=TaskStatus(task_data.get("status", "pending")),
+                        agent=task_data.get("agent", "orchestrator"),
+                        result=task_data.get("result")
+                    )
+                    st.session_state.app_state.tasks.append(task)
+            
+            # Add log entries if any
+            if "logs" in result:
+                for log_data in result["logs"]:
+                    log_entry = LogEntry(
+                        source=log_data.get("source", "orchestrator"),
+                        message=log_data.get("message", "")
+                    )
+                    st.session_state.app_state.logs.append(log_entry)
         
         # Clear image after processing
         st.session_state.app_state.image = None
@@ -629,9 +698,68 @@ async def execute_single_task(task_id: str):
             task.result = f"Task failed: {str(e)}"
             st.error(f"Task failed: {e}")
 
+def render_workflow_artifacts():
+    """Render workflow artifacts from end-to-end execution."""
+    if hasattr(st.session_state, 'workflow_artifacts') and st.session_state.workflow_artifacts:
+        st.markdown("### 📦 Workflow Artifacts")
+        
+        # Create tabs for different artifact types
+        artifact_types = list(st.session_state.workflow_artifacts.keys())
+        if artifact_types:
+            tabs = st.tabs([f"📊 {artifact_type.replace('_', ' ').title()}" for artifact_type in artifact_types])
+            
+            for i, (artifact_type, artifacts) in enumerate(st.session_state.workflow_artifacts.items()):
+                with tabs[i]:
+                    if isinstance(artifacts, dict):
+                        # Display structured artifacts
+                        for key, value in artifacts.items():
+                            if isinstance(value, (str, int, float, bool)):
+                                st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
+                            elif isinstance(value, dict):
+                                with st.expander(f"📋 {key.replace('_', ' ').title()}", expanded=False):
+                                    st.json(value)
+                            elif isinstance(value, list):
+                                with st.expander(f"📝 {key.replace('_', ' ').title()}", expanded=False):
+                                    for item in value:
+                                        if isinstance(item, str):
+                                            st.markdown(f"• {item}")
+                                        else:
+                                            st.json(item)
+                    else:
+                        # Display simple artifacts
+                        st.markdown(str(artifacts))
+                    
+                    # Add download button for artifacts
+                    if st.button(f"📥 Download {artifact_type.replace('_', ' ').title()} Artifacts", key=f"download_{artifact_type}"):
+                        artifact_json = json.dumps(artifacts, indent=2, default=str)
+                        st.download_button(
+                            label=f"Download {artifact_type}.json",
+                            data=artifact_json.encode('utf-8'),
+                            file_name=f"{artifact_type}_artifacts.json",
+                            mime="application/json",
+                            key=f"download_btn_{artifact_type}"
+                        )
+
 def render_workflow_status():
     """Render current workflow status and phase information."""
-    if st.session_state.workflow_mode in ["intelligent", "multi_agent"] and st.session_state.show_step_details:
+    if st.session_state.workflow_mode == "end_to_end":
+        st.markdown("### 🔄 End-to-End Workflow Status")
+        
+        # Show execution summary if available
+        if st.session_state.app_state.logs:
+            latest_log = st.session_state.app_state.logs[-1]
+            st.info(f"**Latest Update**: {latest_log.source} - {latest_log.message}")
+            
+            # Show execution timeline
+            if len(st.session_state.app_state.logs) > 1:
+                with st.expander("Execution Timeline", expanded=False):
+                    for log in st.session_state.app_state.logs[-10:]:
+                        st.text(f"✓ {log.source}: {log.message}")
+        
+        # Render artifacts
+        render_workflow_artifacts()
+        
+    elif st.session_state.workflow_mode in ["intelligent", "multi_agent"] and st.session_state.show_step_details:
         st.markdown("### 🔄 Multi-Agent Workflow Status")
         
         # Show current phase based on latest logs
