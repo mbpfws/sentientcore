@@ -1,0 +1,19 @@
+{
+  "backend_tests": {
+    "health_check": {
+      "status": "FAIL",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: / (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001B0AE73C050>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-05T17:20:15.585141"
+    }
+  },
+  "frontend_tests": {
+    "health_check": {
+      "status": "FAIL",
+      "details": "HTTPConnectionPool(host='localhost', port=3001): Max retries exceeded with url: / (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001B0AE6FE0D0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "timestamp": "2025-07-05T17:20:19.699954"
+    }
+  },
+  "memory_tests": {},
+  "orchestrator_tests": {},
+  "development_stage": {}
+}

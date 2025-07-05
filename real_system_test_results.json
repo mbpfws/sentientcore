@@ -1,0 +1,101 @@
+{
+  "total_tests": 13,
+  "status_counts": {
+    "PASS": 3,
+    "FAIL": 10
+  },
+  "detailed_results": [
+    {
+      "test_name": "Direct Import: UltraOrchestrator",
+      "status": "PASS",
+      "details": "Successfully imported UltraOrchestrator class",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:10.345319"
+    },
+    {
+      "test_name": "Direct Import: ResearchAgent",
+      "status": "PASS",
+      "details": "Successfully imported ResearchAgent class",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:10.345741"
+    },
+    {
+      "test_name": "Direct Import: ResearchWorkflow",
+      "status": "PASS",
+      "details": "Successfully imported research workflow graph",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:11.040898"
+    },
+    {
+      "test_name": "Conversation: Project Planning Request",
+      "status": "FAIL",
+      "details": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/chat/message (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE1DD69400>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:15.178344"
+    },
+    {
+      "test_name": "Conversation: Technical Research Request",
+      "status": "FAIL",
+      "details": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/chat/message (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE1DD81810>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:19.302833"
+    },
+    {
+      "test_name": "Conversation: Architecture Question",
+      "status": "FAIL",
+      "details": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/chat/message (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE1DD81450>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:23.403209"
+    },
+    {
+      "test_name": "Agent: List Available Agents",
+      "status": "FAIL",
+      "details": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/agents (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE1DD1E060>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:27.469640"
+    },
+    {
+      "test_name": "Agent: Research Agent",
+      "status": "FAIL",
+      "details": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/agents/research (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE1DD1D5B0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:31.530102"
+    },
+    {
+      "test_name": "Agent: Architect Agent",
+      "status": "FAIL",
+      "details": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/agents/architect (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE1DD4DD90>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:35.638285"
+    },
+    {
+      "test_name": "Workflow: List Available Workflows",
+      "status": "FAIL",
+      "details": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/workflows (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE1DDA0D10>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:39.769384"
+    },
+    {
+      "test_name": "Workflow: Research Workflow",
+      "status": "FAIL",
+      "details": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/workflows/research (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE1DDA1480>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:43.864796"
+    },
+    {
+      "test_name": "Workflow: Design Workflow",
+      "status": "FAIL",
+      "details": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/workflows/design (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE1DDA17B0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:48.007802"
+    },
+    {
+      "test_name": "System Integration: Full Workflow",
+      "status": "FAIL",
+      "details": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/chat/message (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE1DDA1AE0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))",
+      "data": null,
+      "timestamp": "2025-07-05T17:12:52.090623"
+    }
+  ],
+  "timestamp": "2025-07-05T17:12:52.103567"
+}

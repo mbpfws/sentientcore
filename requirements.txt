@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+langchain
+langgraph
+groq
+google-generativeai
+pyautogen
+chromadb
+sentence-transformers
+tavily-python
+exa-py
+duckduckgo-search
+numpy
+faiss-cpu

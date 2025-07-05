@@ -1,0 +1,106 @@
+{
+  "summary": {
+    "total_tests": 8,
+    "passed": 5,
+    "partial": 0,
+    "failed": 3,
+    "success_rate": 62.5
+  },
+  "detailed_results": [
+    {
+      "test_name": "LLM Service: API Keys",
+      "status": "PASS",
+      "message": "Found 2 API key(s)",
+      "details": {
+        "available_keys": [
+          "GROQ_API_KEY",
+          "GEMINI_API_KEY"
+        ]
+      },
+      "timestamp": "2025-07-05T17:13:06.458192"
+    },
+    {
+      "test_name": "LLM Service: Initialization",
+      "status": "PASS",
+      "message": "Successfully initialized with 2 provider(s)",
+      "details": {
+        "providers": [
+          "groq",
+          "gemini"
+        ],
+        "fallback_chain": [
+          "groq",
+          "gemini"
+        ]
+      },
+      "timestamp": "2025-07-05T17:13:06.792388"
+    },
+    {
+      "test_name": "LLM Call: Simple Test",
+      "status": "PASS",
+      "message": "Successfully received response from LLM",
+      "details": {
+        "response_length": 26,
+        "response_preview": "Two plus two equals four.\n"
+      },
+      "timestamp": "2025-07-05T17:13:08.811584"
+    },
+    {
+      "test_name": "Orchestrator: Real Conversation",
+      "status": "FAIL",
+      "message": "Unexpected result format: <class 'core.models.AppState'>",
+      "details": {},
+      "timestamp": "2025-07-05T17:13:09.507284"
+    },
+    {
+      "test_name": "Research Agent: Planning",
+      "status": "PASS",
+      "message": "Successfully planned 5 research steps",
+      "details": {
+        "steps_count": 5,
+        "first_step": "top options and alternatives for Best practices for React state management in 2024"
+      },
+      "timestamp": "2025-07-05T17:13:11.655035"
+    },
+    {
+      "test_name": "Research Agent: Execution",
+      "status": "PASS",
+      "message": "Successfully executed research step",
+      "details": {
+        "completed_steps": 1,
+        "result_preview": "## Research Findings: Best Practices for React State Management in 2024\n\n**Introduction:**\n\nReact state management remains a crucial aspect of building scalable and maintainable applications.  Choosin..."
+      },
+      "timestamp": "2025-07-05T17:13:19.133059"
+    },
+    {
+      "test_name": "Research Workflow: Real Execution",
+      "status": "FAIL",
+      "message": "Workflow execution failed or returned invalid result",
+      "details": {},
+      "timestamp": "2025-07-05T17:14:17.397990"
+    },
+    {
+      "test_name": "Multi-Turn: Conversation",
+      "status": "FAIL",
+      "message": "Multi-turn conversation failed: 1 validation error for EnhancedTask\nagent_type\n  Input should be 'ultra_orchestrator', 'monitoring_agent', 'research_agent', 'architect_planner', 'frontend_developer', 'backend_developer', 'coding_agent' or 'specialized_agent' [type=enum, input_value='integration_specialist', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/enum",
+      "details": {},
+      "timestamp": "2025-07-05T17:14:20.674654"
+    }
+  ],
+  "llm_service_stats": {
+    "usage_by_provider": {
+      "gemini": 2,
+      "groq": 6
+    },
+    "errors_by_provider": {
+      "groq_general_error": 2
+    },
+    "average_response_times": {
+      "gemini": 4.518127083778381,
+      "groq": 1.0166371663411458
+    },
+    "total_requests": 8,
+    "total_errors": 2,
+    "recent_requests_count": 10
+  }
+}
