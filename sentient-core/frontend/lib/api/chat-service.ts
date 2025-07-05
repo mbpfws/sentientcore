@@ -7,6 +7,7 @@ export interface SendMessageRequest {
   workflow_mode?: string;
   research_mode?: string;
   task_id?: string;
+  image_data?: Uint8Array;
 }
 
 export interface ChatHistory {
@@ -21,12 +22,35 @@ export const ChatService = {
    */
   sendMessage: async (request: SendMessageRequest): Promise<Message> => {
     try {
-      const response = await fetch(`${API_URL}/api/chat/message`, {
+      let body: string | FormData;
+      let headers: Record<string, string> = {};
+      let endpoint = `${API_URL}/api/chat/message`;
+      
+      if (request.image_data) {
+        // Use FormData for requests with images
+        const formData = new FormData();
+        formData.append('message', request.message);
+        if (request.workflow_mode) formData.append('workflow_mode', request.workflow_mode);
+        if (request.research_mode) formData.append('research_mode', request.research_mode);
+        if (request.task_id) formData.append('task_id', request.task_id);
+        
+        // Convert Uint8Array to Blob for FormData
+        const imageBlob = new Blob([request.image_data], { type: 'image/jpeg' });
+        formData.append('image_data', imageBlob, 'image.jpg');
+        
+        body = formData;
+        // Don't set Content-Type header for FormData, let browser set it with boundary
+      } else {
+        // Use JSON endpoint for text-only requests
+        endpoint = `${API_URL}/api/chat/message/json`;
+        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify(request);
+      }
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
+        headers,
+        body,
       });
       
       if (!response.ok) {

@@ -83,6 +83,26 @@ class EnhancedGroqProvider(LLMProvider):
         
         # Define latest Groq models with their capabilities
         models = [
+            # Vision-capable models (prioritized for multimodal tasks)
+            ModelInfo(
+                name="meta-llama/llama-4-scout-17b-16e-instruct",
+                provider="groq",
+                capabilities=[ModelCapability.TEXT_GENERATION, ModelCapability.VISION, 
+                            ModelCapability.FUNCTION_CALLING, ModelCapability.STRUCTURED_OUTPUT],
+                context_length=131072,
+                max_output_tokens=8192,
+                supports_tools=True
+            ),
+            ModelInfo(
+                name="meta-llama/llama-4-maverick-17b-128e-instruct",
+                provider="groq",
+                capabilities=[ModelCapability.TEXT_GENERATION, ModelCapability.VISION, 
+                            ModelCapability.FUNCTION_CALLING, ModelCapability.STRUCTURED_OUTPUT],
+                context_length=131072,
+                max_output_tokens=8192,
+                supports_tools=True
+            ),
+            # Text-only models
             ModelInfo(
                 name="llama-3.3-70b-versatile",
                 provider="groq",
@@ -302,64 +322,4 @@ class OpenAIProvider(LLMProvider):
             "finish_reason": response.choices[0].finish_reason
         }
 
-class GeminiProvider(LLMProvider):
-    """Enhanced Gemini provider."""
-
-    def __init__(self):
-        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY environment variable not set.")
-        
-        models = [
-            ModelInfo(
-                name="gemini-1.5-flash-latest",
-                provider="gemini",
-                capabilities=[ModelCapability.TEXT_GENERATION, ModelCapability.VISION],
-                context_length=1000000,
-                max_output_tokens=8192
-            ),
-            ModelInfo(
-                name="gemini-1.5-pro-latest",
-                provider="gemini",
-                capabilities=[ModelCapability.TEXT_GENERATION, ModelCapability.VISION, 
-                            ModelCapability.REASONING],
-                context_length=2000000,
-                max_output_tokens=8192
-            )
-        ]
-        
-        client = OpenAI(api_key=api_key, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
-        super().__init__(client, models)
-
-    async def generate(self, model: str, messages: List[Dict[str, Any]], **kwargs) -> str:
-        response = await asyncio.to_thread(
-            self.client.chat.completions.create, model=model, messages=messages, **kwargs
-        )
-        return response.choices[0].message.content
-
-    async def generate_stream(self, model: str, messages: List[Dict[str, Any]], **kwargs) -> AsyncGenerator[str, None]:
-        stream = await asyncio.to_thread(
-            self.client.chat.completions.create, model=model, messages=messages, stream=True, **kwargs
-        )
-        for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
-
-    async def generate_structured(self, model: str, messages: List[Dict[str, Any]], 
-                                schema: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        # Gemini doesn't support structured output natively, so we'll use prompt engineering
-        schema_prompt = f"\n\nPlease respond with a JSON object that follows this schema: {json.dumps(schema)}"
-        modified_messages = messages.copy()
-        if modified_messages:
-            modified_messages[-1]["content"] += schema_prompt
-        
-        response = await self.generate(model, modified_messages, **kwargs)
-        try:
-            return json.loads(response)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse structured response: {e}")
-
-    async def generate_with_tools(self, model: str, messages: List[Dict[str, Any]], 
-                                tools: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
-        # Gemini doesn't support tool calling natively through OpenAI API
-        raise NotImplementedError("Tool calling not supported for Gemini models")
+# GeminiProvider removed - using only Groq API as requested

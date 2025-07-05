@@ -242,6 +242,53 @@ class EnhancedLLMService:
         
         return messages
 
+    async def generate(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        context_id: Optional[str] = None,
+        image_bytes: Optional[bytes] = None,
+        **kwargs
+    ) -> str:
+        """Generate a response, with special prioritization for Groq vision models when image is provided."""
+        # If image is provided, prioritize Groq vision models
+        if image_bytes and model is None:
+            model, provider_name = self._get_optimal_model([ModelCapability.VISION])
+        elif model is None:
+            # For text-only requests, use general model selection
+            model, provider_name = self._get_optimal_model([])
+        else:
+            provider_name = self._get_provider_for_model(model)
+        
+        # Get or create context
+        context = self.get_or_create_context(context_id) if context_id else None
+        
+        # Construct messages with image support
+        messages = self._construct_multimodal_messages(prompt, image_bytes, context)
+        
+        # Add user message to context
+        if context:
+            context.add_message("user", prompt)
+        
+        start_time = time.time()
+        try:
+            provider = self.providers[provider_name]
+            result = await provider.generate(model, messages, **kwargs)
+            
+            # Track success
+            response_time = time.time() - start_time
+            self._track_success(provider_name, model, response_time)
+            
+            # Add to context
+            if context:
+                context.add_message("assistant", result)
+            
+            return result
+            
+        except Exception as e:
+            self._track_error(provider_name, "generation_error", str(e))
+            raise
+
     async def generate_structured(
         self,
         prompt: str,

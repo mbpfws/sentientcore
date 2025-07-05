@@ -78,29 +78,7 @@ class OpenAIProvider(LLMProvider):
             if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
 
-class GeminiProvider(LLMProvider):
-    """LLM provider for Google Gemini models via OpenAI compatibility layer."""
-
-    def __init__(self):
-        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY environment variable not set.")
-        client = OpenAI(api_key=api_key, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
-        super().__init__(client, ["gemini-1.5-flash-latest"])
-
-    async def generate(self, model: str, messages: List[Dict[str, Any]], **kwargs) -> str:
-        response = await asyncio.to_thread(
-            self.client.chat.completions.create, model=model, messages=messages, **kwargs
-        )
-        return response.choices[0].message.content
-
-    async def generate_stream(self, model: str, messages: List[Dict[str, Any]], **kwargs) -> AsyncGenerator[str, None]:
-        stream = await asyncio.to_thread(
-            self.client.chat.completions.create, model=model, messages=messages, stream=True, **kwargs
-        )
-        for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+# GeminiProvider removed - using only Groq API as requested
 
 class EnhancedLLMService:
     """
@@ -127,12 +105,7 @@ class EnhancedLLMService:
             except Exception as e:
                 print(f"Failed to initialize OpenAI provider: {e}")
         
-        if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
-            try:
-                self.providers['gemini'] = GeminiProvider()
-                self.fallback_chain.append('gemini')
-            except Exception as e:
-                print(f"Failed to initialize Gemini provider: {e}")
+        # Gemini provider removed - using only Groq API as requested
         
         if not self.providers:
             raise ValueError("No LLM providers could be initialized. Please check your API keys.")
@@ -152,9 +125,7 @@ class EnhancedLLMService:
                 return name
         
         # Fallback logic based on model name patterns (only if provider is available)
-        if 'gemini' in model.lower() and 'gemini' in self.providers:
-            return 'gemini'
-        elif ('gpt' in model.lower() or 'openai' in model.lower()) and 'openai' in self.providers:
+        if ('gpt' in model.lower() or 'openai' in model.lower()) and 'openai' in self.providers:
             return 'openai'
         elif 'groq' in self.providers:
             return 'groq'

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, Body
+from fastapi import APIRouter, HTTPException, Request, Body, Form, File, UploadFile
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 import os
@@ -35,72 +35,118 @@ class ApiResponse(BaseModel):
     success: bool = True
     message: str = "Success"
 
-@router.post("/message")
-async def process_chat_message(chat_request: ChatRequest):
-    """Process a chat message and return the response message"""
+async def _process_message_internal(
+    message: str,
+    workflow_mode: str = "intelligent",
+    research_mode: Optional[str] = None,
+    task_id: Optional[str] = None,
+    image_data: Optional[bytes] = None
+) -> MessageResponse:
+    """Internal function to process chat messages"""
+    # Create initial app state
+    app_state = AppState()
+    
+    # Add research mode prefix if specified
+    message_text = message
+    if research_mode:
+        research_prefix = {
+            "knowledge": "Please conduct a Knowledge Research",
+            "deep": "Please conduct a Deep Research",
+            "best_in_class": "Please conduct a Best-in-Class Research"
+        }.get(research_mode, "")
+        
+        if research_prefix:
+            message_text = f"{research_prefix}: {message_text}"
+    
+    # Add user message to state
+    app_state.messages.append(
+        Message(sender="user", content=message_text, image=image_data)
+    )
+    
+    # Set image if provided
+    if image_data:
+        app_state.image = image_data
+    
+    # Process through the sentient workflow graph
     try:
-        # Create initial app state
-        app_state = AppState()
+        workflow_app = get_sentient_workflow_app()
+        result = await workflow_app.ainvoke(app_state)
+    except Exception as workflow_error:
+        # Fallback to a helpful error message if workflow fails
+        error_response = Message(
+            sender="assistant",
+            content=f"I encountered an issue processing your request: {str(workflow_error)}. Please try again or contact support if the issue persists.",
+            created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        )
+        app_state.messages.append(error_response)
+        result = app_state
+    
+    # Convert result to AppState model and extract assistant response
+    if isinstance(result, dict):
+        result_state = AppState(**result)
+    else:
+        result_state = result
+    
+    # Get the last assistant message from the result
+    assistant_messages = [msg for msg in result_state.messages if msg.sender == "assistant"]
+    if assistant_messages:
+        last_message = assistant_messages[-1]
+        response_message = MessageResponse(
+            id=f"msg_{int(time.time() * 1000)}",
+            content=last_message.content,
+            sender="assistant",
+            created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        )
+    else:
+        # Fallback response if no assistant message found
+        response_message = MessageResponse(
+            id=f"msg_{int(time.time() * 1000)}",
+            content="I received your message but couldn't generate a response. Please try again.",
+            sender="assistant",
+            created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        )
+    
+    return response_message
+
+@router.post("/message")
+async def process_chat_message(
+    message: str = Form(...),
+    workflow_mode: str = Form("intelligent"),
+    research_mode: Optional[str] = Form(None),
+    task_id: Optional[str] = Form(None),
+    image_data: Optional[UploadFile] = File(None)
+):
+    """Process a chat message with optional image attachment"""
+    try:
+        # Handle image data if provided
+        image_bytes = None
+        if image_data:
+            image_bytes = await image_data.read()
         
-        # Add research mode prefix if specified
-        message_text = chat_request.message
-        if chat_request.research_mode:
-            research_prefix = {
-                "knowledge": "Please conduct a Knowledge Research",
-                "deep": "Please conduct a Deep Research",
-                "best_in_class": "Please conduct a Best-in-Class Research"
-            }.get(chat_request.research_mode, "")
-            
-            if research_prefix:
-                message_text = f"{research_prefix}: {message_text}"
-        
-        # Add user message to state
-        app_state.messages.append(
-            Message(sender="user", content=message_text, image=chat_request.image_data)
+        response_message = await _process_message_internal(
+            message=message,
+            workflow_mode=workflow_mode,
+            research_mode=research_mode,
+            task_id=task_id,
+            image_data=image_bytes
         )
         
-        # Set image if provided
-        if chat_request.image_data:
-            app_state.image = chat_request.image_data
+        return ApiResponse(data=response_message)
         
-        # Process through the sentient workflow graph
-        try:
-            workflow_app = get_sentient_workflow_app()
-            result = await workflow_app.ainvoke(app_state)
-        except Exception as workflow_error:
-            # Fallback to a helpful error message if workflow fails
-            error_response = Message(
-                sender="assistant",
-                content=f"I encountered an issue processing your request: {str(workflow_error)}. Please try again or contact support if the issue persists.",
-                created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
-            )
-            app_state.messages.append(error_response)
-            result = app_state
-        
-        # Convert result to AppState model and extract assistant response
-        if isinstance(result, dict):
-            result_state = AppState(**result)
-        else:
-            result_state = result
-        
-        # Get the last assistant message from the result
-        assistant_messages = [msg for msg in result_state.messages if msg.sender == "assistant"]
-        if assistant_messages:
-            last_message = assistant_messages[-1]
-            response_message = MessageResponse(
-                id=f"msg_{int(time.time() * 1000)}",
-                content=last_message.content,
-                sender="assistant",
-                created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
-            )
-        else:
-            # Fallback response if no assistant message found
-            response_message = MessageResponse(
-                id=f"msg_{int(time.time() * 1000)}",
-                content="I received your message but couldn't generate a response. Please try again.",
-                sender="assistant",
-                created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
-            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing chat message: {str(e)}")
+
+@router.post("/message/json")
+async def process_chat_message_json(chat_request: ChatRequest):
+    """Process a chat message using JSON (backward compatibility)"""
+    try:
+        response_message = await _process_message_internal(
+            message=chat_request.message,
+            workflow_mode=chat_request.workflow_mode,
+            research_mode=chat_request.research_mode,
+            task_id=getattr(chat_request, 'task_id', None),
+            image_data=chat_request.image_data
+        )
         
         return ApiResponse(data=response_message)
         

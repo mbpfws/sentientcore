@@ -6,7 +6,7 @@ Simplified workflow focusing on basic conversation management and state persiste
 from langgraph.graph import StateGraph, END
 from core.models import AppState, Message, LogEntry
 from core.agents.ultra_orchestrator import UltraOrchestrator
-from core.services.llm_service import EnhancedLLMService
+from core.services.enhanced_llm_service_main import EnhancedLLMService
 from typing import Dict, Any
 
 # Global variables for lazy initialization

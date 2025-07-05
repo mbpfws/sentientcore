@@ -4,7 +4,7 @@ The master conductor of the multi-agent RAG system.
 """
 
 from core.models import AppState, AgentType, LogEntry, EnhancedTask, Message
-from core.services.llm_service import EnhancedLLMService
+from core.services.enhanced_llm_service_main import EnhancedLLMService
 from typing import Dict, Any, cast
 import json
 import re
@@ -94,8 +94,8 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
         conversation_history = "\n".join([f"{msg.sender}: {msg.content}" for msg in state.messages])
         context = f"Conversation History:\n{conversation_history}\n\nNumber of turns: {len(state.messages)}"
 
-        # Select a model (Gemini for vision, Llama for text)
-        model_name = "gemini-2.5-flash" if state.image else "llama-3.3-70b-versatile"
+        # Select a model (Llama 4 Scout for vision, Llama 3.3 70B for text)
+        model_name = "meta-llama/llama-4-scout-17b-16e-instruct" if state.image else "llama-3.3-70b-versatile"
 
         # Call the LLM with the system prompt and context, ensuring no streaming
         response_obj = await self.llm_service.invoke(

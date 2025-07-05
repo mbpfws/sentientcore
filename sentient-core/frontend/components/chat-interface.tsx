@@ -7,12 +7,14 @@ import TextareaAutosize from 'react-textarea-autosize';
 import ReactMarkdown from 'react-markdown';
 import { ChatService, Message as ApiMessage } from '@/lib/api';
 import { useAppContext } from '@/lib/context/app-context';
+import { Paperclip, X, Image as ImageIcon } from 'lucide-react';
 
 // Extended from API Message type with UI-specific fields
 interface Message extends Partial<ApiMessage> {
   sender: 'user' | 'assistant';
   content: string;
   hasImage?: boolean;
+  imageUrl?: string;
   isLoading?: boolean;
 }
 
@@ -22,8 +24,11 @@ const ChatInterface = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [researchMode, setResearchMode] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Scroll to bottom of messages whenever they change
   useEffect(() => {
@@ -61,7 +66,7 @@ const ChatInterface = () => {
   }, [activeWorkflow]);
 
   const handleSendMessage = async () => {
-    if (!input.trim() || !activeWorkflow) return;
+    if ((!input.trim() && !selectedImage) || !activeWorkflow) return;
     
     // Create a temporary ID for the user message
     const tempUserId = `user_${Date.now()}`;
@@ -70,12 +75,21 @@ const ChatInterface = () => {
     const userMessage: Message = { 
       id: tempUserId,
       sender: 'user', 
-      content: input,
+      content: input || (selectedImage ? '[Image attached]' : ''),
+      hasImage: !!selectedImage,
+      imageUrl: imagePreview || undefined,
       created_at: new Date().toISOString()
     };
     
     setMessages(prev => [...prev, userMessage]);
+    
+    // Store current input and image for API call
+    const currentInput = input;
+    const currentImage = selectedImage;
+    
+    // Clear input and image
     setInput('');
+    handleImageRemove();
     
     // Add a loading message placeholder
     const loadingMessage: Message = {
@@ -89,11 +103,18 @@ const ChatInterface = () => {
     setMessages(prev => [...prev, loadingMessage]);
     
     try {
+      // Prepare image data if present
+      let imageData: Uint8Array | undefined;
+      if (currentImage) {
+        imageData = await fileToBytes(currentImage);
+      }
+      
       // Send the message to the backend
       const response = await ChatService.sendMessage({
-        message: input,
+        message: currentInput,
         workflow_mode: activeWorkflow,
-        research_mode: researchMode || undefined
+        research_mode: researchMode || undefined,
+        image_data: imageData
       });
       
       // Replace the loading message with the actual response
@@ -127,6 +148,46 @@ const ChatInterface = () => {
   const setResearchModeAndNotify = (mode: string) => {
     setResearchMode(mode);
     // Show a notification or some UI indicator that the mode is selected
+  };
+
+  // Handle image file selection
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedImage(file);
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Remove selected image
+  const handleImageRemove = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Convert file to base64 bytes
+  const fileToBytes = (file: File): Promise<Uint8Array> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (reader.result instanceof ArrayBuffer) {
+          resolve(new Uint8Array(reader.result));
+        } else {
+          reject(new Error('Failed to read file as ArrayBuffer'));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
   };
 
   return (
@@ -192,9 +253,20 @@ const ChatInterface = () => {
                     <span className="animate-bounce delay-200">●</span>
                   </div>
                 ) : (
-                  <ReactMarkdown>
-                    {message.content}
-                  </ReactMarkdown>
+                  <div>
+                    {message.hasImage && message.imageUrl && (
+                      <div className="mb-2">
+                        <img 
+                          src={message.imageUrl} 
+                          alt="Attached image" 
+                          className="max-w-xs max-h-48 rounded-md object-cover"
+                        />
+                      </div>
+                    )}
+                    <ReactMarkdown>
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
                 )}
                 {message.created_at && !message.isLoading && (
                   <div className="text-xs mt-2 opacity-70">
@@ -208,11 +280,60 @@ const ChatInterface = () => {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Image preview */}
+      {imagePreview && (
+        <div className="mb-4 p-3 border rounded-md bg-muted/50">
+          <div className="flex items-start gap-3">
+            <div className="relative">
+              <img 
+                src={imagePreview} 
+                alt="Preview" 
+                className="max-w-32 max-h-32 rounded-md object-cover"
+              />
+              <Button
+                size="sm"
+                variant="destructive"
+                className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                onClick={handleImageRemove}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <ImageIcon className="h-4 w-4" />
+                <span>{selectedImage?.name}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Image will be sent with your message
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Chat input area */}
       <div className="flex items-end border rounded-md p-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageSelect}
+          className="hidden"
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isLoading}
+          className="mr-2 p-2"
+          title="Attach image"
+        >
+          <Paperclip className="h-4 w-4" />
+        </Button>
         <TextareaAutosize
           className="flex-grow resize-none bg-background focus:outline-none px-3 py-2"
-          placeholder="What do you want to build today?"
+          placeholder={selectedImage ? "Add a message (optional)" : "What do you want to build today?"}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           maxRows={5}
@@ -225,7 +346,7 @@ const ChatInterface = () => {
         />
         <Button 
           onClick={handleSendMessage} 
-          disabled={isLoading || !input.trim() || !activeWorkflow}
+          disabled={isLoading || (!input.trim() && !selectedImage) || !activeWorkflow}
           className="ml-2"
         >
           {isLoading ? (
