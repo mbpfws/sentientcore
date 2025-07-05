@@ -27,7 +27,7 @@ class FrontendDeveloperAgent(BaseAgent):
             description="Specialized agent for frontend development, UI/UX design, and user interface implementation"
         )
         self.llm_service = llm_service
-        self.supported_frameworks = ['react', 'nextjs', 'vue', 'angular', 'streamlit', 'html', 'css', 'javascript']
+        self.supported_frameworks = ['react', 'nextjs', 'vue', 'angular', 'html', 'css', 'javascript']
         self.ui_components = []
         self.design_patterns = []
 

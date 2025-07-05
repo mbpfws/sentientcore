@@ -132,58 +132,22 @@ async def test_workflow_execution(orchestrator):
         logger.exception("Workflow execution error")
         return False, None
 
-async def test_frontend_backend_connection():
-    """Test frontend-backend connection."""
-    print("\n🌐 Testing Frontend-Backend Connection...")
+async def test_api_endpoints():
+    """Test API endpoints availability."""
+    print("\n🌐 Testing API Endpoints...")
     
     try:
-        # Check if main.py can import all required modules
-        from app.main import initialize_services, initialize_session_state
+        # Test that FastAPI app can be imported
+        from app.api.app import app
         
-        print("✅ Frontend can import all required modules")
-        
-        # Test session state initialization
-        import streamlit as st
-        
-        # Mock streamlit session state for testing
-        class MockSessionState:
-            def __init__(self):
-                self._state = {}
-            
-            def __contains__(self, key):
-                return key in self._state
-            
-            def __getitem__(self, key):
-                return self._state[key]
-            
-            def __setitem__(self, key, value):
-                self._state[key] = value
-        
-        # Temporarily replace st.session_state for testing
-        original_session_state = getattr(st, 'session_state', None)
-        st.session_state = MockSessionState()
-        
-        try:
-            initialize_session_state()
-            print("✅ Session state initialization works")
-            
-            # Test service initialization
-            services_initialized = await initialize_services()
-            if services_initialized:
-                print("✅ Frontend can initialize backend services")
-            else:
-                print("⚠️  Service initialization returned False")
-                
-        finally:
-            # Restore original session state
-            if original_session_state is not None:
-                st.session_state = original_session_state
+        print("✅ FastAPI app can be imported successfully")
+        print(f"   - App title: {getattr(app, 'title', 'Unknown')}")
         
         return True
         
     except Exception as e:
-        print(f"❌ Frontend-backend connection test failed: {e}")
-        logger.exception("Frontend-backend connection error")
+        print(f"❌ API endpoints test failed: {e}")
+        logger.exception("API endpoints test error")
         return False
 
 async def main():
@@ -206,8 +170,8 @@ async def main():
     # Test workflow execution
     workflow_ok, workflow_result = await test_workflow_execution(orchestrator)
     
-    # Test frontend-backend connection
-    frontend_ok = await test_frontend_backend_connection()
+    # Test API endpoints
+    api_ok = await test_api_endpoints()
     
     # Summary
     print("\n" + "=" * 50)
@@ -216,9 +180,9 @@ async def main():
     print(f"   Agent System: {'✅ PASS' if agent_ok else '❌ FAIL'}")
     print(f"   Graph Integration: {'✅ PASS' if graph_ok else '❌ FAIL'}")
     print(f"   Workflow Execution: {'✅ PASS' if workflow_ok else '❌ FAIL'}")
-    print(f"   Frontend-Backend: {'✅ PASS' if frontend_ok else '❌ FAIL'}")
+    print(f"   API Endpoints: {'✅ PASS' if api_ok else '❌ FAIL'}")
     
-    overall_success = all([services_ok, agent_ok, graph_ok, workflow_ok, frontend_ok])
+    overall_success = all([services_ok, agent_ok, graph_ok, workflow_ok, api_ok])
     
     if overall_success:
         print("\n🎉 ALL TESTS PASSED! System is ready for end-to-end testing.")

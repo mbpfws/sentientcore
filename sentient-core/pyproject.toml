@@ -25,7 +25,8 @@ Pillow = "*"
 python-dotenv = "*"
 
 # Web & App Framework
-streamlit = "*"
+fastapi = "*"
+uvicorn = "*"
 
 # E2B - Secure Code Execution Sandbox
 e2b = "*"

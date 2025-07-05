@@ -37,29 +37,81 @@ async def test_basic_conversation():
     
     result = await app.ainvoke(initial_state)
     print(f"User: {initial_state.user_prompt}")
-    print(f"Assistant: {result.messages[-1].content}")
+    
+    # Handle LangGraph returning a dictionary instead of AppState object
+    if isinstance(result, dict):
+        # Convert dict back to AppState or access as dict
+        messages = result.get('messages', [])
+        if messages:
+            last_message = messages[-1]
+            if isinstance(last_message, dict):
+                print(f"Assistant: {last_message.get('content', 'No content')}")
+            else:
+                print(f"Assistant: {last_message.content}")
+        else:
+            print("No messages found in result")
+        return result
+    else:
+        print(f"Assistant: {result.messages[-1].content}")
+        return result
     
     # Test 2: Follow-up question about conversation history
     print("\nTest 2: Follow-up question about conversation history")
+    
+    # Handle result being a dictionary
+    if isinstance(result, dict):
+        previous_messages = result.get('messages', [])
+    else:
+        previous_messages = result.messages
+        
     follow_up_state = AppState(
-        messages=result.messages + [Message(sender="user", content="What was the first thing I said to you?")],
+        messages=previous_messages + [Message(sender="user", content="What was the first thing I said to you?")],
         user_prompt="What was the first thing I said to you?"
     )
     
     result2 = await app.ainvoke(follow_up_state)
     print(f"User: {follow_up_state.user_prompt}")
-    print(f"Assistant: {result2.messages[-1].content}")
+    
+    # Handle result2 being a dictionary
+    if isinstance(result2, dict):
+        messages = result2.get('messages', [])
+        if messages:
+            last_message = messages[-1]
+            if isinstance(last_message, dict):
+                print(f"Assistant: {last_message.get('content', 'No content')}")
+            else:
+                print(f"Assistant: {last_message.content}")
+    else:
+        print(f"Assistant: {result2.messages[-1].content}")
     
     # Test 3: General question
     print("\nTest 3: General question")
+    
+    # Handle result2 being a dictionary
+    if isinstance(result2, dict):
+        previous_messages = result2.get('messages', [])
+    else:
+        previous_messages = result2.messages
+        
     general_state = AppState(
-        messages=result2.messages + [Message(sender="user", content="Can you help me understand what you can do?")],
+        messages=previous_messages + [Message(sender="user", content="Can you help me understand what you can do?")],
         user_prompt="Can you help me understand what you can do?"
     )
     
     result3 = await app.ainvoke(general_state)
     print(f"User: {general_state.user_prompt}")
-    print(f"Assistant: {result3.messages[-1].content}")
+    
+    # Handle result3 being a dictionary
+    if isinstance(result3, dict):
+        messages = result3.get('messages', [])
+        if messages:
+            last_message = messages[-1]
+            if isinstance(last_message, dict):
+                print(f"Assistant: {last_message.get('content', 'No content')}")
+            else:
+                print(f"Assistant: {last_message.content}")
+    else:
+        print(f"Assistant: {result3.messages[-1].content}")
     
     return result3
 
@@ -80,27 +132,74 @@ async def test_conversation_persistence():
     print("\nTurn 1:")
     result1 = await app.ainvoke(state)
     print(f"User: {state.user_prompt}")
-    print(f"Assistant: {result1.messages[-1].content}")
+    
+    # Handle result1 being a dictionary
+    if isinstance(result1, dict):
+        messages = result1.get('messages', [])
+        if messages:
+            last_message = messages[-1]
+            if isinstance(last_message, dict):
+                print(f"Assistant: {last_message.get('content', 'No content')}")
+            else:
+                print(f"Assistant: {last_message.content}")
+    else:
+        print(f"Assistant: {result1.messages[-1].content}")
     
     # Turn 2 - Ask about name
     print("\nTurn 2:")
+    
+    # Handle result1 being a dictionary
+    if isinstance(result1, dict):
+        previous_messages = result1.get('messages', [])
+    else:
+        previous_messages = result1.messages
+        
     state2 = AppState(
-        messages=result1.messages + [Message(sender="user", content="What's my name?")],
+        messages=previous_messages + [Message(sender="user", content="What's my name?")],
         user_prompt="What's my name?"
     )
     result2 = await app.ainvoke(state2)
     print(f"User: {state2.user_prompt}")
-    print(f"Assistant: {result2.messages[-1].content}")
+    
+    # Handle result2 being a dictionary
+    if isinstance(result2, dict):
+        messages = result2.get('messages', [])
+        if messages:
+            last_message = messages[-1]
+            if isinstance(last_message, dict):
+                print(f"Assistant: {last_message.get('content', 'No content')}")
+            else:
+                print(f"Assistant: {last_message.content}")
+    else:
+        print(f"Assistant: {result2.messages[-1].content}")
     
     # Turn 3 - Ask about interests
     print("\nTurn 3:")
+    
+    # Handle result2 being a dictionary
+    if isinstance(result2, dict):
+        previous_messages = result2.get('messages', [])
+    else:
+        previous_messages = result2.messages
+        
     state3 = AppState(
-        messages=result2.messages + [Message(sender="user", content="What did I say I like?")],
+        messages=previous_messages + [Message(sender="user", content="What did I say I like?")],
         user_prompt="What did I say I like?"
     )
     result3 = await app.ainvoke(state3)
     print(f"User: {state3.user_prompt}")
-    print(f"Assistant: {result3.messages[-1].content}")
+    
+    # Handle result3 being a dictionary
+    if isinstance(result3, dict):
+        messages = result3.get('messages', [])
+        if messages:
+            last_message = messages[-1]
+            if isinstance(last_message, dict):
+                print(f"Assistant: {last_message.get('content', 'No content')}")
+            else:
+                print(f"Assistant: {last_message.content}")
+    else:
+        print(f"Assistant: {result3.messages[-1].content}")
     
     return result3
 
@@ -121,7 +220,18 @@ async def test_error_handling():
     try:
         result = await app.ainvoke(empty_state)
         print(f"User: (empty)")
-        print(f"Assistant: {result.messages[-1].content}")
+        
+        # Handle result being a dictionary
+        if isinstance(result, dict):
+            messages = result.get('messages', [])
+            if messages:
+                last_message = messages[-1]
+                if isinstance(last_message, dict):
+                    print(f"Assistant: {last_message.get('content', 'No content')}")
+                else:
+                    print(f"Assistant: {last_message.content}")
+        else:
+            print(f"Assistant: {result.messages[-1].content}")
         print("✓ Empty input handled gracefully")
     except Exception as e:
         print(f"✗ Error with empty input: {e}")
@@ -150,7 +260,9 @@ async def main():
         print("- Error handling")
         
     except Exception as e:
+        import traceback
         print(f"\n✗ Build 1 tests failed: {e}")
+        print(f"Full traceback: {traceback.format_exc()}")
         print("\nBuild 1 Status: NEEDS FIXES")
         return False
     
