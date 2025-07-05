@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .enhanced_llm_service import (
-    EnhancedGroqProvider, OpenAIProvider, GeminiProvider, 
+    EnhancedGroqProvider, OpenAIProvider, 
     ModelCapability, ModelInfo, StructuredOutputSchema
 )
 
@@ -140,14 +140,7 @@ class EnhancedLLMService:
             except Exception as e:
                 print(f"✗ Failed to initialize OpenAI provider: {e}")
         
-        # Initialize Gemini provider
-        if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
-            try:
-                self.providers['gemini'] = GeminiProvider()
-                self.fallback_chain.append('gemini')
-                print("✓ Gemini provider initialized")
-            except Exception as e:
-                print(f"✗ Failed to initialize Gemini provider: {e}")
+        # Gemini provider removed - using only Groq API as requested
         
         if not self.providers:
             raise ValueError("No LLM providers could be initialized. Please check your API keys.")
@@ -450,10 +443,8 @@ class EnhancedLLMService:
             if model in provider.model_list:
                 return name
         
-        # Fallback logic
-        if 'gemini' in model.lower() and 'gemini' in self.providers:
-            return 'gemini'
-        elif ('gpt' in model.lower() or 'openai' in model.lower()) and 'openai' in self.providers:
+        # Fallback logic - prioritize Groq as requested
+        if ('gpt' in model.lower() or 'openai' in model.lower()) and 'openai' in self.providers:
             return 'openai'
         elif 'groq' in self.providers:
             return 'groq'
