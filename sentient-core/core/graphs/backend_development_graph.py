@@ -8,7 +8,7 @@ and deployment configuration.
 from typing import Dict, Any, List, Optional, Literal
 from pydantic import BaseModel, Field
 from langgraph import StateGraph, END
-from langgraph.graph import Graph
+from langgraph.graph import StateGraph
 from datetime import datetime
 import json
 

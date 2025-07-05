@@ -7,7 +7,7 @@ build execution, and knowledge synthesis graphs.
 
 from typing import Dict, Any, List, Optional, Type, Union
 from pydantic import BaseModel, Field
-from langgraph.graph import Graph
+from langgraph.graph import StateGraph
 from datetime import datetime
 import json
 import asyncio
@@ -90,7 +90,7 @@ class GraphIntegrationManager:
         self.groq_service = groq_service
         
         # Initialize graphs
-        self.graphs: Dict[GraphType, Graph] = {}
+        self.graphs: Dict[GraphType, StateGraph] = {}
         self.state_types: Dict[GraphType, Type] = {
             GraphType.ORCHESTRATOR: OrchestratorState,
             GraphType.RESEARCH: ResearchState,
