@@ -1,19 +1,17 @@
-"""
-The Sentient Workflow Graph
-This is the main, top-level graph that orchestrates the entire multi-agent system.
+"""  
+The Sentient Workflow Graph - Build 1: Core Conversation & Orchestration Loop
+Simplified workflow focusing on basic conversation management and state persistence.
 """
 
 from langgraph.graph import StateGraph, END
 from core.models import AppState, Message, LogEntry
 from core.agents.ultra_orchestrator import UltraOrchestrator
-from core.agents.monitoring_agent import MonitoringAgent
 from core.services.llm_service import EnhancedLLMService
 from typing import Dict, Any
 
 # Global variables for lazy initialization
 _llm_service = None
 _ultra_orchestrator = None
-_monitoring_agent = None
 
 def get_llm_service():
     """Get or create LLM service instance"""
@@ -40,18 +38,6 @@ def get_ultra_orchestrator():
             _ultra_orchestrator = MockUltraOrchestrator()
     return _ultra_orchestrator
 
-def get_monitoring_agent():
-    """Get or create Monitoring Agent instance"""
-    global _monitoring_agent
-    if _monitoring_agent is None:
-        try:
-            _monitoring_agent = MonitoringAgent()
-        except Exception as e:
-            print(f"Warning: Failed to initialize Monitoring Agent: {e}")
-            # Create a mock monitoring agent for testing
-            _monitoring_agent = MockMonitoringAgent()
-    return _monitoring_agent
-
 # Mock classes for fallback when initialization fails
 class MockLLMService:
     """Mock LLM service for testing when real service fails to initialize"""
@@ -72,11 +58,7 @@ class MockUltraOrchestrator:
         state.next_action = "end"
         return state
 
-class MockMonitoringAgent:
-    """Mock Monitoring Agent for testing when real agent fails to initialize"""
-    def invoke(self, state: AppState) -> AppState:
-        print("Mock monitoring agent: System status OK")
-        return state
+
 
 # Create the main workflow graph
 workflow = StateGraph(AppState)
