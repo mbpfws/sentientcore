@@ -95,7 +95,7 @@ class SubmitApprovalRequest(BaseModel):
 class TaskBreakdownRequest(BaseModel):
     """Request model for breaking down a task into workflow steps"""
     task_description: str = Field(..., description="Description of the task to break down", min_length=1, max_length=2000)
-    strategy: BreakdownStrategy = Field(BreakdownStrategy.CODE_DEVELOPMENT, description="Strategy to use for breakdown")
+    strategy: BreakdownStrategy = Field(BreakdownStrategy.SEQUENTIAL, description="Strategy to use for breakdown")
     complexity_hint: Optional[ComplexityLevel] = Field(None, description="Hint about the expected complexity")
     category_hint: Optional[TaskCategory] = Field(None, description="Hint about the task category")
     context: Optional[Dict[str, Any]] = Field(None, description="Additional context for the breakdown")
