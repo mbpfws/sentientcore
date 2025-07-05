@@ -1,10 +1,16 @@
 from core.models import EnhancedTask, AppState, TaskStatus, ResearchState, ResearchStep, LogEntry
 from core.services.llm_service import EnhancedLLMService
 from core.agents.base_agent import BaseAgent, AgentCapability, ActivityType
+import os
+import asyncio
+import base64
+import time
 import json
 import re
+from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple, Optional
 from enum import Enum
+from datetime import datetime
 
 class ResearchMode(Enum):
     """Research modes that determine the depth and approach of research."""
@@ -29,14 +35,22 @@ class ResearchAgent(BaseAgent):
         )
         self.llm_service = llm_service
         
-        # Model selection based on research complexity
+        # Model selection based on research complexity with agentic capabilities
         self.models = {
             "planning": "compound-beta",  # Best for planning and tool use
-            "search": "compound-mini-beta",  # Efficient for search tasks
+            "search": "compound-beta",  # Full-featured for search with tool access
+            "search_efficient": "compound-mini-beta",  # Efficient for simpler search tasks
             "synthesis": "compound-beta",  # Best for complex synthesis
             "reasoning": "compound-beta"  # Best for deep reasoning
         }
-
+        
+        # Track search progress for frontend visualization
+        self.current_searches = {}
+        self.search_history = []
+        
+        # Initialize memory persistence flag
+        self.persist_to_memory = True
+        
     def can_handle_task(self, task: EnhancedTask) -> bool:
         """
         Determines if this agent can handle the given task.
@@ -255,78 +269,116 @@ Instructions:
 2. Look for multiple sources and perspectives
 3. Include specific facts, figures, and data points
 4. Note any conflicting information or debates
-5. Provide source context where relevant
-
-Format your response as a detailed research finding with clear structure.
-"""
+        
+        # Generate a unique ID for tracking this search
+        search_id = f"{pending_step.query[:10].replace(' ', '_')}_{len(self.search_history) + 1}"
+        self.current_searches[search_id] = {
+            "status": "in_progress",
+            "query": pending_step.query,
+            "start_time": time.time(),
+            "progress": []
+        }
         
         try:
-            # Try streaming first
-            response_stream = self.llm_service.invoke(
-                system_prompt=system_prompt,
-                user_prompt=f"Research this query thoroughly: {pending_step.query}",
-                model=self.models["search"],
-                stream=True
-            )
+            # Prepare agentic search system prompt with tool access
+            search_system_prompt = """
+            You are an advanced research agent with web search capabilities. 
+            You have access to a set of search tools that can help you find accurate information.
+            Always prefer to use the search tools over generating information from your knowledge.
+            Follow these steps:
+            1. Use the web_search tool to gather relevant information from multiple sources
+            2. Extract key information and insights from the search results
+            3. Organize the findings in a coherent structure with clear sections
+            4. Include relevant quotes and citations with proper URLs
+            5. Focus on factual, accurate, and up-to-date information
             
-            # Collect streamed response
-            search_result = ""
-            for chunk in response_stream:
-                if chunk.choices[0].delta.content:
-                    content_chunk = chunk.choices[0].delta.content
-                    search_result += content_chunk
+            For each source, provide:
+            - The full URL
+            - The title of the page
+            - A comprehensive summary of relevant information
+            - Any direct quotes that support key points (with proper attribution)
+            
+            Respond with ONLY valid JSON with this structure:
+            {"search_results": [{"source": "URL", "title": "Page Title", "summary": "Key information from source"}], "summary": "Overall synthesis of findings"}
+            """
+            
+            # Use compound-beta for full agentic search capabilities
+            model = self.models["search"]
+            
+            # Track search progress for streaming updates
+            progress_updates = []
+            
+            # Execute search with streaming support if callback provided
+            if stream_callback:
+                search_results_text = ""
+                async for chunk in self.llm_service.invoke(
+                    system_prompt=search_system_prompt,
+                    user_prompt=pending_step.query,
+                    model=model,
+                    stream=True,
+                    temperature=0.2,  # Lower temperature for factual accuracy
+                    tools=[{  # Add Groq agentic tool definition for web search
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "description": "Search the web for current information on a topic",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "The search query to use"
+                                    }
+                                },
+                                "required": ["query"]
+                            }
+                        }
+                    }]
+                ):
+                    search_results_text += chunk
                     
-                    # Stream to frontend
-                    if stream_callback:
-                        stream_callback({
-                            "type": "search_chunk",
-                            "query": pending_step.query,
-                            "chunk": content_chunk,
-                            "accumulated": search_result
-                        })
+                    # Track progress for frontend visualization
+                    if len(chunk) > 10:  # Only send substantial updates
+                        progress_update = {"time": time.time(), "content": chunk}
+                        progress_updates.append(progress_update)
+                        self.current_searches[search_id]["progress"].append(progress_update)
                         
-        except Exception as e:
-            # Fallback to non-streaming
-            print(f"Streaming failed, falling back to non-streaming: {e}")
-            search_result = await self.llm_service.invoke(
-                system_prompt=system_prompt,
-                user_prompt=f"Research this query thoroughly: {pending_step.query}",
-                model=self.models["search"],
-                stream=False
-            )
-        
-        pending_step.result = search_result
-        pending_step.status = "completed"
-        
-        log_msg = f"Search for '{pending_step.query}' completed."
-        self.log_activity(ActivityType.PROCESSING, log_msg)
-        state.logs.append(LogEntry(source="ResearchAgent", message=log_msg))
-        print(log_msg)
-        
-        # Notify frontend about search completion
-        if stream_callback:
-            stream_callback({
-                "type": "search_complete",
-                "query": pending_step.query,
-                "result": search_result,
-                "message": log_msg
-            })
-
-        return state
-
-    async def synthesize_report(self, state: ResearchState) -> ResearchState:
-        """
-        Synthesizes research findings into a comprehensive report based on research mode.
-        """
-        self.log_activity(ActivityType.PROCESSING, "Synthesizing comprehensive report")
-        state.logs.append(LogEntry(source="ResearchAgent", message="Synthesizing comprehensive report..."))
-        print("---RESEARCH AGENT: ADVANCED SYNTHESIS---")
-
-        # Determine research mode from the number and type of steps
-        research_mode = self._infer_research_mode(state)
-        
-        all_results = []
-        for i, step in enumerate(state.steps):
+                        # Stream progress to frontend
+                        await stream_callback({
+                            "status": "progress", 
+                            "message": "Receiving search results...",
+                            "search_id": search_id,
+                            "content": chunk
+                        })
+                    
+                # Parse final results from streamed text
+                search_results = self._parse_json_response(search_results_text)
+            else:
+                # Non-streaming execution with agentic tools
+                search_results_text = await self.llm_service.invoke(
+                    system_prompt=search_system_prompt,
+                    user_prompt=pending_step.query,
+                    model=model,
+                    temperature=0.2,
+                    tools=[{  # Add Groq agentic tool definition for web search
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "description": "Search the web for current information on a topic",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "The search query to use"
+                                    }
+                                },
+                                "required": ["query"]
+                            }
+                        }
+                    }]
+                )
+                search_results = self._parse_json_response(search_results_text)
             all_results.append(f"**Research Finding {i+1}:** {step.query}\n\n{step.result}\n\n---\n")
         
         if research_mode == ResearchMode.KNOWLEDGE:

@@ -3,10 +3,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import TextareaAutosize from 'react-textarea-autosize';
 import ReactMarkdown from 'react-markdown';
-import { ChatService, Message as ApiMessage } from '@/lib/api';
+import { ChatService, Message as ApiMessage, ResearchService } from '@/lib/api';
 import { useAppContext } from '@/lib/context/app-context';
+import ResearchProgressView from '@/components/research-progress-view';
 
 // Extended from API Message type with UI-specific fields
 interface Message extends Partial<ApiMessage> {
@@ -22,6 +27,13 @@ const ChatInterface = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [researchMode, setResearchMode] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'chat' | 'research'>('chat');
+  const [activeResearchId, setActiveResearchId] = useState<string | undefined>();
+  const [showNewResearchDialog, setShowNewResearchDialog] = useState(false);
+  const [newResearchQuery, setNewResearchQuery] = useState('');
+  const [newResearchMode, setNewResearchMode] = useState<'knowledge' | 'deep' | 'best_in_class'>('knowledge');
+  const [isStartingResearch, setIsStartingResearch] = useState(false);
+  const [researchError, setResearchError] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -129,8 +141,118 @@ const ChatInterface = () => {
     // Show a notification or some UI indicator that the mode is selected
   };
 
+  const handleStartNewResearch = async () => {
+    if (!newResearchQuery.trim()) return;
+    
+    try {
+      setIsStartingResearch(true);
+      setResearchError(null);
+      
+      const result = await ResearchService.startResearch({
+        query: newResearchQuery,
+        mode: newResearchMode,
+        persist_to_memory: true
+      });
+      
+      setActiveResearchId(result.id);
+      setActiveTab('research');
+      setShowNewResearchDialog(false);
+      setNewResearchQuery('');
+    } catch (error) {
+      console.error('Error starting research:', error);
+      setResearchError(typeof error === 'object' && error !== null && 'message' in error 
+        ? String(error.message) 
+        : 'An unexpected error occurred');
+    } finally {
+      setIsStartingResearch(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-200px)]">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'chat' | 'research')} className="w-full mb-4">
+        <div className="flex justify-between items-center">
+          <TabsList>
+            <TabsTrigger value="chat">Chat</TabsTrigger>
+            <TabsTrigger value="research">Research Results</TabsTrigger>
+          </TabsList>
+          
+          {activeTab === 'research' && (
+            <Dialog open={showNewResearchDialog} onOpenChange={setShowNewResearchDialog}>
+              <DialogTrigger asChild>
+                <Button>New Research</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Start New Research</DialogTitle>
+                  <DialogDescription>
+                    Enter your research query and select a research mode.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="research-query">Research Query</Label>
+                    <Input
+                      id="research-query"
+                      placeholder="What would you like to research?"
+                      value={newResearchQuery}
+                      onChange={(e) => setNewResearchQuery(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Research Mode</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button 
+                        type="button" 
+                        variant={newResearchMode === 'knowledge' ? 'default' : 'outline'}
+                        onClick={() => setNewResearchMode('knowledge')}
+                      >
+                        📚 Knowledge
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant={newResearchMode === 'deep' ? 'default' : 'outline'}
+                        onClick={() => setNewResearchMode('deep')}
+                      >
+                        🧠 Deep
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant={newResearchMode === 'best_in_class' ? 'default' : 'outline'}
+                        onClick={() => setNewResearchMode('best_in_class')}
+                      >
+                        🏆 Best-in-Class
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {researchError && (
+                    <div className="text-destructive text-sm">{researchError}</div>
+                  )}
+                </div>
+                
+                <DialogFooter>
+                  <Button 
+                    onClick={() => setShowNewResearchDialog(false)} 
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleStartNewResearch} 
+                    disabled={!newResearchQuery.trim() || isStartingResearch}
+                  >
+                    {isStartingResearch ? 'Starting...' : 'Start Research'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+        
+        <TabsContent value="chat" className="mt-0">
       {/* Research mode buttons */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <Button 
@@ -235,6 +357,15 @@ const ChatInterface = () => {
           )}
         </Button>
       </div>
+        </TabsContent>
+        
+        <TabsContent value="research" className="mt-0">
+          <ResearchProgressView 
+            activeResearchId={activeResearchId} 
+            onNewResearch={() => setShowNewResearchDialog(true)} 
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
