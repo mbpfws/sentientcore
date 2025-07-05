@@ -86,8 +86,7 @@ async def _process_message_internal(
         # Fallback to a helpful error message if workflow fails
         error_response = Message(
             sender="assistant",
-            content=f"I encountered an issue processing your request: {str(workflow_error)}. Please try again or contact support if the issue persists.",
-            created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            content=f"I encountered an issue processing your request: {str(workflow_error)}. Please try again or contact support if the issue persists."
         )
         app_state.messages.append(error_response)
         result = app_state

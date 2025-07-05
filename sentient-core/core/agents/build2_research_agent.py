@@ -1,7 +1,7 @@
 """Build 2 Research Agent with Groq Agentic Tooling
 
 This agent implements autonomous research capabilities using Groq's compound-beta models
-with built-in tool_use functionality for web search and knowledge synthesis.
+with built-in agentic tooling for web search and code execution.
 """
 
 import json
@@ -11,21 +11,19 @@ from datetime import datetime
 from pathlib import Path
 
 from groq import Groq
-from core.models import AppState, LogEntry, ResearchState, ResearchStep
-from core.services.enhanced_llm_service import EnhancedLLMService
-from core.services.memory_service import MemoryService
+from core.models import AppState, LogEntry, ResearchState, ResearchStep, MemoryLayer
+from core.services.memory_service import MemoryService, MemoryType
 from core.services.session_persistence_service import get_session_persistence_service
 
 
 class Build2ResearchAgent:
     """
-    Advanced Research Agent for Build 2 that uses Groq's agentic tooling
-    to autonomously conduct research with verbose logging and artifact generation.
+    Advanced Research Agent for Build 2 that uses Groq's compound-beta models
+    with built-in agentic tooling for autonomous research and knowledge synthesis.
     """
     
     def __init__(self):
         self.groq_client = Groq()
-        self.llm_service = EnhancedLLMService()
         self.memory_service = MemoryService()
         self.persistence_service = get_session_persistence_service()
         
@@ -33,82 +31,14 @@ class Build2ResearchAgent:
         self.research_docs_path = Path("./memory/layer1_research_docs")
         self.research_docs_path.mkdir(parents=True, exist_ok=True)
         
-        # Groq models optimized for agentic tooling
-        self.research_model = "compound-beta"  # Primary model for research
-        self.synthesis_model = "compound-beta-mini"  # Faster model for synthesis
+        # Groq compound models with built-in agentic tooling
+        self.research_model = "compound-beta"  # Primary model with built-in web search and code execution
+        self.synthesis_model = "compound-beta-mini"  # Faster model for synthesis with single tool call support
         
-        print("Build 2 Research Agent initialized with Groq agentic tooling")
+        print("Build 2 Research Agent initialized with Groq compound-beta agentic tooling")
     
-    def _get_search_tools(self) -> List[Dict[str, Any]]:
-        """
-        Define the search tools available to the Groq model for agentic tooling.
-        """
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": "web_search",
-                    "description": "Search the web for information on a specific topic or question. Use this when you need current information, facts, or research on any subject.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "The search query to execute. Be specific and focused."
-                            },
-                            "focus_area": {
-                                "type": "string",
-                                "description": "The specific aspect or area to focus on (e.g., 'technical solutions', 'best practices', 'recent developments')"
-                            }
-                        },
-                        "required": ["query"]
-                    }
-                }
-            }
-        ]
-    
-    async def _execute_search_tool(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Execute a search tool call made by the Groq model.
-        """
-        try:
-            function_name = tool_call["function"]["name"]
-            arguments = json.loads(tool_call["function"]["arguments"])
-            
-            if function_name == "web_search":
-                query = arguments["query"]
-                focus_area = arguments.get("focus_area", "general")
-                
-                print(f"[Research Agent]: Executing search - Query: '{query}', Focus: '{focus_area}'")
-                
-                # Use the existing LLM service's web search capability
-                search_results = await self.llm_service.web_search(
-                    query=query,
-                    num_results=5
-                )
-                
-                return {
-                    "tool_call_id": tool_call["id"],
-                    "content": json.dumps({
-                        "query": query,
-                        "focus_area": focus_area,
-                        "results": search_results,
-                        "timestamp": datetime.now().isoformat()
-                    })
-                }
-            
-            else:
-                return {
-                    "tool_call_id": tool_call["id"],
-                    "content": json.dumps({"error": f"Unknown function: {function_name}"})
-                }
-                
-        except Exception as e:
-            print(f"Error executing search tool: {e}")
-            return {
-                "tool_call_id": tool_call["id"],
-                "content": json.dumps({"error": str(e)})
-            }
+    # Note: compound-beta models have built-in agentic tooling
+    # No custom tool definitions needed - web search and code execution are built-in
     
     async def invoke(self, user_message: str, session_id: str = None) -> Dict[str, Any]:
         """
@@ -167,111 +97,83 @@ class Build2ResearchAgent:
                 message=f"[Research Agent]: Starting autonomous research for query: '{query}'"
             ))
             
-            # Phase 1: Research Planning and Execution
-            planning_prompt = f"""
-You are an expert research agent with access to web search tools. Your task is to conduct comprehensive research on the following query:
+            # Phase 1: Research Planning and Execution using compound-beta
+            research_prompt = f"""
+You are an expert research agent with built-in web search capabilities. Your task is to conduct comprehensive research on the following query:
 
 QUERY: {query}
 
 Your approach should be:
 1. Break down the query into specific research areas
-2. Use the web_search tool to gather information on each area
+2. Use your built-in web search capabilities to gather current information
 3. Think step-by-step and be verbose about your research process
-4. Generate multiple targeted search queries to get comprehensive coverage
+4. Generate multiple targeted searches to get comprehensive coverage
 5. Analyze and synthesize the information you find
+6. Provide a thorough, well-structured research report
 
-Be extremely verbose about your thought process. Explain each search you're about to make and why.
+Be extremely verbose about your thought process. Explain each search you're about to make and why. Use your web search capabilities to find the most current and relevant information.
 
-Start by analyzing the query and planning your research approach.
+Start by analyzing the query and conducting your research.
 """
             
-            # Initial research conversation
-            messages = [
-                {"role": "system", "content": "You are a thorough research agent. Be verbose and explain your thinking process."},
-                {"role": "user", "content": planning_prompt}
-            ]
+            state.logs.append(LogEntry(
+                source="Build2_ResearchAgent",
+                message="[Research Agent]: Starting research with compound-beta agentic tooling"
+            ))
             
-            # Conduct iterative research with tool calls
-            max_iterations = 5
-            iteration = 0
-            
-            while iteration < max_iterations:
-                iteration += 1
-                
-                state.logs.append(LogEntry(
-                    source="Build2_ResearchAgent",
-                    message=f"[Research Agent]: Research iteration {iteration}/{max_iterations}"
-                ))
-                
-                # Call Groq with tool use capability
+            # Use compound-beta model with built-in agentic tooling
+            try:
                 response = self.groq_client.chat.completions.create(
                     model=self.research_model,
-                    messages=messages,
-                    tools=self._get_search_tools(),
-                    tool_choice="auto",
+                    messages=[
+                        {"role": "system", "content": "You are a thorough research agent with built-in web search capabilities. Be verbose and explain your thinking process."},
+                        {"role": "user", "content": research_prompt}
+                    ],
                     temperature=0.1,
-                    max_tokens=2000
+                    max_tokens=4000
                 )
                 
-                message = response.choices[0].message
+                research_content = response.choices[0].message.content
                 
-                # Log the agent's reasoning
-                if message.content:
+                # Log the research process
+                state.logs.append(LogEntry(
+                    source="Build2_ResearchAgent",
+                    message="[Research Agent]: Research completed using compound-beta agentic tooling"
+                ))
+                
+                # Check if tools were executed
+                if hasattr(response.choices[0].message, 'executed_tools') and response.choices[0].message.executed_tools:
+                    executed_tools = response.choices[0].message.executed_tools
                     state.logs.append(LogEntry(
                         source="Build2_ResearchAgent",
-                        message=f"[Research Agent]: {message.content}"
+                        message=f"[Research Agent]: Executed {len(executed_tools)} tool calls during research"
                     ))
-                
-                # Add assistant message to conversation
-                messages.append({
-                    "role": "assistant",
-                    "content": message.content,
-                    "tool_calls": message.tool_calls
-                })
-                
-                # Execute tool calls if any
-                if message.tool_calls:
-                    tool_results = []
                     
-                    for tool_call in message.tool_calls:
-                        # Log the search being executed
-                        try:
-                            args = json.loads(tool_call.function.arguments)
-                            query_text = args.get("query", "unknown")
-                            state.logs.append(LogEntry(
-                                source="Build2_ResearchAgent",
-                                message=f"[Research Agent]: Executing search query: '{query_text}'"
-                            ))
-                        except:
-                            pass
+                    # Log details of executed tools
+                    for i, tool in enumerate(executed_tools, 1):
+                        # Handle ExecutedTool object properly
+                        if hasattr(tool, 'type'):
+                            tool_type = tool.type
+                        elif hasattr(tool, 'name'):
+                            tool_type = tool.name
+                        elif isinstance(tool, dict):
+                            tool_type = tool.get('type', 'unknown')
+                        else:
+                            tool_type = str(type(tool).__name__)
                         
-                        # Execute the tool call
-                        result = await self._execute_search_tool(tool_call.dict())
-                        tool_results.append(result)
-                        
-                        # Log search completion
                         state.logs.append(LogEntry(
                             source="Build2_ResearchAgent",
-                            message=f"[Research Agent]: Search completed, processing results..."
+                            message=f"[Research Agent]: Tool {i}: {tool_type}"
                         ))
-                    
-                    # Add tool results to conversation
-                    for result in tool_results:
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": result["tool_call_id"],
-                            "content": result["content"]
-                        })
-                    
-                    # Continue the conversation to get analysis
-                    messages.append({
-                        "role": "user",
-                        "content": "Please analyze the search results and determine if you need more information or if you can proceed to synthesize your findings. If you need more information, make additional searches. If you have enough, provide a comprehensive analysis."
-                    })
                 
-                else:
-                    # No more tool calls, research is complete
-                    break
+            except Exception as e:
+                error_msg = f"Error during compound-beta research: {str(e)}"
+                print(error_msg)
+                state.logs.append(LogEntry(
+                    source="Build2_ResearchAgent",
+                    message=f"[Research Agent]: ERROR - {error_msg}"
+                ))
+                research_content = f"Research failed due to error: {error_msg}"
             
             # Phase 2: Consolidation and Report Generation
             state.logs.append(LogEntry(
@@ -280,7 +182,7 @@ Start by analyzing the query and planning your research approach.
             ))
             
             # Generate final report
-            final_report = await self._generate_final_report(messages, query, state)
+            final_report = await self._generate_final_report(research_content, query, state)
             
             # Save research artifacts
             await self._save_research_artifacts(query, final_report, session_id, state)
@@ -302,13 +204,16 @@ Start by analyzing the query and planning your research approach.
             ))
             return state
     
-    async def _generate_final_report(self, conversation_messages: List[Dict], original_query: str, state: AppState) -> str:
+    async def _generate_final_report(self, research_content: str, query: str, state: AppState) -> str:
         """
-        Generate a comprehensive final report from the research conversation.
+        Generate a comprehensive final report from the research content.
         """
         try:
             synthesis_prompt = f"""
-Based on the research conversation above, generate a comprehensive, well-structured research report for the original query: "{original_query}"
+Based on the following research content, generate a comprehensive, well-structured research report for the query: "{query}"
+
+RESEARCH CONTENT:
+{research_content}
 
 The report should include:
 1. Executive Summary
@@ -322,15 +227,18 @@ Format the report in clean Markdown with proper headings, bullet points, and str
 Make it professional and actionable.
 """
             
-            # Add synthesis request to conversation
-            synthesis_messages = conversation_messages + [
-                {"role": "user", "content": synthesis_prompt}
-            ]
+            state.logs.append(LogEntry(
+                source="Build2_ResearchAgent",
+                message="[Research Agent]: Generating final report with compound-beta-mini"
+            ))
             
-            # Generate final report using synthesis model
+            # Generate final report using compound-beta-mini directly
             response = self.groq_client.chat.completions.create(
                 model=self.synthesis_model,
-                messages=synthesis_messages,
+                messages=[
+                    {"role": "system", "content": "You are an expert research analyst. Generate comprehensive, well-structured reports based on research findings."},
+                    {"role": "user", "content": synthesis_prompt}
+                ],
                 temperature=0.1,
                 max_tokens=3000
             )
@@ -442,12 +350,19 @@ Make it professional and actionable.
                     message=f"[Research Agent]: PDF generation failed: {str(pdf_error)}"
                 ))
             
-            # Save to memory service
-            await self.memory_service.store_research_finding(
-                query=query,
-                findings=report,
-                source="Build2_ResearchAgent",
-                session_id=session_id
+            # Save to memory service using the correct method
+            await self.memory_service.store_memory(
+                layer=MemoryLayer.KNOWLEDGE_SYNTHESIS,
+                memory_type=MemoryType.RESEARCH_FINDING,
+                content=report,
+                metadata={
+                    "query": query,
+                    "source": "Build2_ResearchAgent",
+                    "session_id": session_id,
+                    "topic": safe_query,
+                    "timestamp": timestamp
+                },
+                tags=["research", "build2", "groq_agent"]
             )
             
             state.logs.append(LogEntry(

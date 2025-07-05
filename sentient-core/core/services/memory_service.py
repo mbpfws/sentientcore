@@ -28,16 +28,14 @@ from .vector_service import (
     ChromaVectorStore
 )
 
+# Import models
+from ..models import MemoryLayer
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class MemoryLayer(Enum):
-    """Memory layer enumeration"""
-    KNOWLEDGE_SYNTHESIS = "knowledge_synthesis"
-    CONVERSATION_HISTORY = "conversation_history"
-    CODEBASE_KNOWLEDGE = "codebase_knowledge"
-    STACK_DEPENDENCIES = "stack_dependencies"
+# MemoryLayer enum is now imported from ..models
 
 class MemoryType(Enum):
     """Memory type enumeration for different content types"""

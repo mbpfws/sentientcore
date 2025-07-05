@@ -44,12 +44,18 @@ def get_ultra_orchestrator():
     global _ultra_orchestrator
     if _ultra_orchestrator is None:
         try:
+            print("Attempting to initialize UltraOrchestrator...")
             llm_service = get_llm_service()
+            print(f"LLM Service type: {type(llm_service).__name__}")
             _ultra_orchestrator = UltraOrchestrator(llm_service)
+            print("✓ UltraOrchestrator initialized successfully")
         except Exception as e:
-            print(f"Warning: Failed to initialize Ultra Orchestrator: {e}")
+            print(f"✗ Failed to initialize Ultra Orchestrator: {e}")
+            import traceback
+            print(f"Full traceback: {traceback.format_exc()}")
             # Create a mock orchestrator for testing
             _ultra_orchestrator = MockUltraOrchestrator()
+            print("Using MockUltraOrchestrator as fallback")
     return _ultra_orchestrator
 
 def get_session_persistence():
@@ -83,6 +89,10 @@ class MockUltraOrchestrator:
         ))
         state.next_action = "end"
         return state
+    
+    async def invoke_state(self, state: AppState) -> AppState:
+        """Mock invoke_state method for compatibility"""
+        return await self.invoke(state)
 
 class MockSessionPersistence:
     """Mock Session Persistence for testing when real service fails to initialize"""
@@ -219,5 +229,24 @@ class MockWorkflowApp:
         ))
         return state
 
-# Compile the workflow with error handling
-sentient_workflow_app = get_sentient_workflow_app()
+# Lazy compilation - only compile when needed
+_sentient_workflow_app = None
+
+def get_compiled_workflow():
+    """Get the compiled workflow app with lazy initialization"""
+    global _sentient_workflow_app
+    if _sentient_workflow_app is None:
+        _sentient_workflow_app = get_sentient_workflow_app()
+    return _sentient_workflow_app
+
+# For backward compatibility, create a property that compiles on first access
+class LazyWorkflowApp:
+    def __getattr__(self, name):
+        app = get_compiled_workflow()
+        return getattr(app, name)
+    
+    async def ainvoke(self, *args, **kwargs):
+        app = get_compiled_workflow()
+        return await app.ainvoke(*args, **kwargs)
+
+sentient_workflow_app = LazyWorkflowApp()

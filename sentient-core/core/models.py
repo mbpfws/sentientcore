@@ -40,7 +40,7 @@ class AgentType(str, Enum):
 class MemoryLayer(str, Enum):
     """Defines the layers of the long-term memory system."""
     KNOWLEDGE_SYNTHESIS = "knowledge_synthesis"
-    BUILD_CONVERSATION = "build_conversation"
+    CONVERSATION_HISTORY = "conversation_history"
     CODEBASE_KNOWLEDGE = "codebase_knowledge"
     STACK_DEPENDENCIES = "stack_dependencies"
 

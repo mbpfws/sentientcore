@@ -167,7 +167,8 @@ class ChromaVectorStore(VectorStore):
         
         ids = [doc.id for doc in documents]
         embeddings = [doc.embedding for doc in documents if doc.embedding]
-        metadatas = [doc.metadata for doc in documents]
+        # Ensure all metadata values are JSON-serializable (convert enums to strings)
+        metadatas = [self._serialize_metadata(doc.metadata) for doc in documents]
         documents_content = [doc.content for doc in documents]
         
         if embeddings and len(embeddings) == len(documents):
@@ -229,6 +230,32 @@ class ChromaVectorStore(VectorStore):
         # ChromaDB doesn't have direct update, so we delete and add
         await self.delete_documents([document.id])
         await self.add_documents([document])
+    
+    def _serialize_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Serialize metadata to ensure ChromaDB compatibility.
+        
+        Converts enum objects to their string values and handles other non-serializable types.
+        """
+        if not metadata:
+            return {}
+        
+        serialized = {}
+        for key, value in metadata.items():
+            if hasattr(value, 'value'):  # Handle enum objects
+                serialized[key] = value.value
+            elif isinstance(value, (str, int, float, bool, type(None))):
+                serialized[key] = value
+            elif isinstance(value, (list, tuple)):
+                # Handle lists/tuples that might contain enums
+                serialized[key] = [item.value if hasattr(item, 'value') else item for item in value]
+            elif isinstance(value, dict):
+                # Recursively handle nested dictionaries
+                serialized[key] = self._serialize_metadata(value)
+            else:
+                # Convert other types to string as fallback
+                serialized[key] = str(value)
+        
+        return serialized
 
 
 class FAISSVectorStore(VectorStore):

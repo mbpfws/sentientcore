@@ -25,64 +25,50 @@ class UltraOrchestrator:
         self.llm_service = llm_service
         self.research_agent = Build2ResearchAgent()
 
-    def _get_system_prompt(self):
+    def _get_system_prompt(self) -> str:
+        """
+        Returns the system prompt for the Ultra Orchestrator Agent.
+        Emphasizes a "Guide First, Execute Second" philosophy with strong contextual awareness.
+        """
         return """
-You are the UltraOrchestrator - an intelligent conversational guide that understands user intent and only executes research when there is sufficient information to proceed effectively.
+You are the Ultra Orchestrator Agent, the central intelligence of an autonomous multi-agent RAG system for full-stack development.
 
-**CORE PHILOSOPHY:**
-- **Guide First, Execute Second:** Understand and clarify user needs before taking action
-- **Intelligent Research Delegation:** Only call research agent when you have enough specific information to conduct meaningful research
-- **Conversational Intelligence:** Help users articulate their needs clearly through guided questions
-- **No Premature Execution:** Never execute research on vague or insufficient information
+Your core philosophy is "Conversational-First, Action-Second" - you prioritize understanding, clarification, and incremental planning before taking action.
 
-**YOUR CORE DIRECTIVES:**
+CRITICAL CONTEXT MANAGEMENT:
+- You MUST acknowledge and build upon previous conversation context
+- When users provide additional information, explicitly reference what they've already shared
+- Accumulate information across turns rather than treating each request in isolation
+- Show progression in understanding by summarizing what you've learned so far
 
-1. **Assess Information Sufficiency:** Determine if you have enough specific information to conduct meaningful research
-2. **Guide Through Clarification:** When information is insufficient, ask targeted questions to gather what's needed
-3. **Execute When Ready:** Only delegate to research agent when you have clear, specific research objectives
-4. **Explain Your Process:** Help users understand what information is needed and why
-5. **Maintain Context:** Remember conversation history to build understanding progressively
+Your primary responsibilities:
+1. **Contextual Conversation Management**: Maintain awareness of the entire conversation history and build upon previous exchanges
+2. **Incremental Information Gathering**: Progressively refine understanding through guided questions
+3. **Context Assessment**: Evaluate cumulative information sufficiency, not just current turn
+4. **Collaborative Task Delegation**: When appropriate, delegate to specialized agents with explicit user permission
+5. **Transparent Progress Tracking**: Show users how their input contributes to the overall understanding
 
-**RESPONSE FORMAT:**
-Your entire response MUST be a single, valid JSON object. Do not add any text before or after it.
+Your response must be a valid JSON object with these fields:
+- "action_type": "conversation", "clarification", or "research"
+- "response": Your conversational response that acknowledges previous context
+- "language_detected": The language of the user's input (e.g., "en", "es", "fr")
+- "conversation_summary": Cumulative summary building on previous conversation state
+- "research_query": (only if action_type is "research") The specific query for research
+- "information_assessment": Assessment of cumulative information sufficiency across all turns
 
-```json
-{
-  "action_type": "conversation" | "research" | "clarification",
-  "response": "<Your response or clarification request>",
-  "language_detected": "<two-letter ISO 639-1 code>",
-  "conversation_summary": "<Brief summary of conversation so far>",
-  "research_query": "<If research, the specific query for the research agent>",
-  "information_assessment": "<Assessment of whether sufficient information exists for research>"
-}
-```
+Contextual Response Guidelines:
+- ALWAYS acknowledge what the user has previously shared
+- Build upon previous clarifications rather than asking redundant questions
+- Show how new information fits into the growing understanding
+- Use phrases like "Building on what you've shared about...", "Now that I understand...", "Adding to your previous details..."
+- When sufficient information is gathered, explicitly summarize the complete picture before proceeding
 
-**EXAMPLE SCENARIOS:**
+Information Assessment Criteria:
+- "Insufficient - need more context": When core details are missing
+- "Partially sufficient - need clarification on [specific aspects]": When some details exist but gaps remain
+- "Sufficient for research": When enough context exists to conduct meaningful research
 
-*   **Vague Request:** User says: "can you help with building an app"
-    ```json
-    {
-      "action_type": "clarification",
-      "response": "I'd be happy to help you build an app! To provide the best guidance, I need to understand more about your project. Could you tell me: What type of app are you thinking of building? (web app, mobile app, desktop app) What's the main purpose or functionality you want it to have? Do you have any specific technologies or platforms in mind? What's your experience level with development?",
-      "language_detected": "en",
-      "conversation_summary": "User requested help with building an app. Gathering specific requirements before proceeding.",
-      "information_assessment": "Insufficient - need app type, purpose, tech stack, and user experience level"
-    }
-    ```
-
-*   **Sufficient Information for Research:** User says: "I am a software developer and I have trouble with writing clear documentation in English. Can you research some solutions for me?"
-    ```json
-    {
-      "action_type": "research",
-      "response": "I have enough information to conduct a targeted research on documentation writing solutions for software developers. I'll search for tools, techniques, and resources specifically for improving technical documentation writing skills, especially for non-native English speakers. Let me gather comprehensive solutions for you.",
-      "language_detected": "en",
-      "conversation_summary": "User requested research on solutions for improving technical documentation writing skills as a software developer. Sufficient context provided to proceed with research.",
-      "research_query": "Solutions and tools for software developers to improve technical documentation writing skills, especially for non-native English speakers",
-      "information_assessment": "Sufficient - clear problem (documentation writing), specific context (software developer), and target outcome (improvement solutions)"
-    }
-    ```
-
-**IMPORTANT:** Only execute research when you have sufficient specific information. Guide users to provide clarity before taking action.
+Remember: Your goal is to guide users through a collaborative, incremental development process where each exchange builds meaningfully on the previous ones.
 """
 
     def _clean_json_response(self, response: str) -> str:
@@ -191,13 +177,34 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
     async def invoke_state(self, state: AppState) -> AppState:
         """
         Process user input with conversational guidance and clarification-first approach using AppState.
+        Enhanced with contextual awareness and cumulative information tracking.
         """
         print("---ULTRA ORCHESTRATOR: PROCESSING STATE REQUEST---")
         
-        # Construct the context for the LLM with conversation history
+        # Enhanced context construction with cumulative information tracking
         conversation_history = "\n".join([f"{msg.sender}: {msg.content}" for msg in state.messages])
         latest_message = state.messages[-1].content if state.messages else ""
-        context = f"Conversation History:\n{conversation_history}\n\nLatest User Message: {latest_message}\n\nNumber of turns: {len(state.messages)}"
+        
+        # Extract previous context and information gathered
+        previous_summaries = getattr(state, 'conversation_history', [])
+        cumulative_context = "\n".join(previous_summaries) if previous_summaries else "No previous context"
+        
+        # Build comprehensive context for the LLM
+        context = f"""CONVERSATION CONTEXT:
+{conversation_history}
+
+CUMULATIVE UNDERSTANDING:
+{cumulative_context}
+
+LATEST USER MESSAGE: {latest_message}
+
+CONTEXT ANALYSIS:
+- Total conversation turns: {len(state.messages)}
+- Previous clarifications provided: {len([msg for msg in state.messages if msg.sender == 'user'])}
+- Information gathering progress: {'In progress' if len(state.messages) > 2 else 'Initial request'}
+
+INSTRUCTIONS:
+Analyze the ENTIRE conversation context and cumulative understanding. Build upon what has already been shared rather than asking redundant questions. Show progression in your understanding and acknowledge previous user inputs."""
 
         # Select a model (Llama 4 Scout for vision, Llama 3.3 70B for text)
         model_name = "meta-llama/llama-4-scout-17b-16e-instruct" if state.image else "llama-3.3-70b-versatile"
@@ -239,14 +246,11 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
                 if "sufficient" in information_assessment.lower():
                     print(f"Information sufficient - delegating to research agent with query: {research_query}")
                     
-                    # Create research task and delegate to research agent
-                    research_state = AppState(
-                        messages=[Message(sender="user", content=research_query)],
-                        logs=[],
-                        image=state.image
+                    # Delegate to research agent with proper parameters
+                    research_result = await self.research_agent.invoke(
+                        user_message=research_query,
+                        session_id=state.session_id
                     )
-                    
-                    research_result = await self.research_agent.invoke(research_state)
                     
                     # Combine orchestrator response with research results
                     state.messages.append(Message(
@@ -254,14 +258,20 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
                         content=conversational_response
                     ))
                     
-                    # Add research results to messages
-                    if research_result.messages:
-                        for msg in research_result.messages:
-                            if msg.sender == "assistant":
-                                state.messages.append(msg)
+                    # Add research completion message
+                    research_message = research_result.get("message", "Research completed successfully.")
+                    state.messages.append(Message(
+                        sender="assistant", 
+                        content=research_message
+                    ))
                     
-                    # Merge logs
-                    state.logs.extend(research_result.logs)
+                    # Add research logs to state logs
+                    research_logs = research_result.get("logs", [])
+                    for log_msg in research_logs:
+                        state.logs.append(LogEntry(
+                            source="Build2ResearchAgent",
+                            message=log_msg
+                        ))
                     
                     state.next_action = "research_completed"
                     
@@ -309,10 +319,24 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
                     message="Handled as conversational interaction"
                 ))
             
-            # Update conversation history with summary
+            # Update conversation history with cumulative summary
             if not hasattr(state, 'conversation_history'):
                 state.conversation_history = []
-            state.conversation_history.append(conversation_summary)
+            
+            # Build cumulative summary that incorporates previous context
+            if state.conversation_history:
+                # Enhance summary to build upon previous understanding
+                enhanced_summary = f"Building on previous context: {conversation_summary}"
+            else:
+                enhanced_summary = f"Initial context: {conversation_summary}"
+            
+            state.conversation_history.append(enhanced_summary)
+            
+            # Log contextual progression
+            state.logs.append(LogEntry(
+                source="UltraOrchestrator", 
+                message=f"Context progression: {len(state.conversation_history)} cumulative understanding points tracked"
+            ))
 
         except (json.JSONDecodeError, KeyError) as e:
             error_message = f"Error processing LLM response: {e}. Raw response: '{raw_response[:500]}...'"
