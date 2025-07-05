@@ -62,7 +62,7 @@ class WorkingAgentTester:
             )
             
             # Test invoke method
-            result = orchestrator.invoke(app_state)
+            result = orchestrator.invoke_state(app_state)
             
             if isinstance(result, dict) and "messages" in result:
                 self.log_result(
@@ -207,7 +207,7 @@ class WorkingAgentTester:
                 app_state.messages.append(Message(sender="user", content=user_input))
                 
                 # Get orchestrator response
-                result_dict = await orchestrator.invoke(app_state)
+                result_dict = await orchestrator.invoke_state(app_state)
                 
                 # Update app_state from result
                 app_state.messages = [Message(**msg) for msg in result_dict.get("messages", [])]

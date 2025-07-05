@@ -165,7 +165,7 @@ class RealFunctionalityTester:
             )
             
             # Process the conversation
-            result = await orchestrator.invoke(app_state)
+            result = await orchestrator.invoke_state(app_state)
             
             if isinstance(result, dict) and "messages" in result:
                 messages = result.get("messages", [])
@@ -343,7 +343,7 @@ class RealFunctionalityTester:
                 app_state.messages.append(Message(sender="user", content=user_input))
                 
                 # Get orchestrator response
-                result_dict = await orchestrator.invoke(app_state)
+                result_dict = await orchestrator.invoke_state(app_state)
                 
                 # Update app_state from result
                 if isinstance(result_dict, dict):

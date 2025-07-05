@@ -125,6 +125,9 @@ class AppState(BaseModel):
     This is a comprehensive model that holds the entire state of the application,
     including session info, messages, tasks, logs, and user inputs.
     """
+    # Build 2: Session Management
+    session_id: Optional[str] = None
+    
     # Conversation & User Input
     messages: List[Message] = Field(default_factory=list)
     user_prompt: str = ""

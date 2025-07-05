@@ -259,7 +259,7 @@ class AgentSystemIntegration:
             }
             
             # Process through orchestrator
-            result = await self.orchestrator.invoke(context)
+            result = await self.orchestrator.invoke_state(context)
             
             # Convert result to expected format
             messages = []

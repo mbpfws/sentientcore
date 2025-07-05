@@ -3,6 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import sys
 from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Ensure the project root is in the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))

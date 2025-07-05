@@ -71,7 +71,7 @@ async def test_research_mode_detection():
             app_state.messages.append(user_message)
             
             # Process through orchestrator (simulating backend processing)
-            result_state = await orchestrator.invoke(app_state)
+            result_state = await orchestrator.invoke_state(app_state)
             
             # Check if research was delegated by examining the orchestrator decision
             decision_data = result_state.orchestrator_decision or {}
@@ -141,7 +141,7 @@ async def test_message_flow_simulation():
         # UltraOrchestrator decides what to do
         llm_service = EnhancedLLMService()
         orchestrator = UltraOrchestrator(llm_service)
-        result_state = await orchestrator.invoke(app_state)
+        result_state = await orchestrator.invoke_state(app_state)
         
         print("3. Orchestrator decision:")
         decision_data = result_state.orchestrator_decision or {}

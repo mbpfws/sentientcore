@@ -159,6 +159,9 @@ class EnhancedLLMService:
         self.error_stats = defaultdict(int)  # Track errors per provider
         self.response_times = defaultdict(list)  # Track response times per provider
         self.recent_requests = deque(maxlen=100)  # Keep last 100 requests for analysis
+        
+        # Agentic tooling support
+        self.registered_tools = []
 
     def _get_provider_for_model(self, model: str) -> str:
         """Finds the provider that supports the given model, defaulting to first available."""
@@ -209,6 +212,47 @@ class EnhancedLLMService:
             return self.stream_response(model, messages, **kwargs)
         else:
             return self.generate_with_fallback(model, messages, **kwargs)
+    
+    def register_tool(self, tool_definition: Dict[str, Any]):
+        """Register a tool for agentic tooling across all providers."""
+        if tool_definition not in self.registered_tools:
+            self.registered_tools.append(tool_definition)
+            
+            # Register with Groq provider if available
+            if 'groq' in self.providers:
+                self.providers['groq'].register_tool(tool_definition)
+    
+    async def generate_with_tools(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        stream: bool = False,
+        **kwargs
+    ):
+        """Generate response with tool calling capabilities."""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        provider_name = self._get_provider_for_model(model)
+        provider = self.providers[provider_name]
+        
+        # Use agentic capabilities if available (Groq compound-beta models)
+        if hasattr(provider, 'generate_with_tools') and model in ["compound-beta", "compound-beta-mini"]:
+            return await provider.generate_with_tools(model, messages, **kwargs)
+        else:
+            # Fallback to regular generation
+            return await self.generate_with_fallback(model, messages, **kwargs)
+    
+    async def generate(self, system_prompt: str, user_prompt: str, model: str, **kwargs) -> str:
+        """Simple generate method for direct use."""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        return await self.generate_with_fallback(model, messages, **kwargs)
     
     def invoke_sync(
         self,

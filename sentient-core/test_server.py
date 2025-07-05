@@ -57,7 +57,7 @@ async def test_research(request: TestRequest):
         )
         
         # Process with orchestrator
-        result = await orchestrator.invoke(app_state)
+        result = await orchestrator.invoke_state(app_state)
         
         # Extract response
         assistant_messages = [msg for msg in result.messages if msg.sender == "assistant"]

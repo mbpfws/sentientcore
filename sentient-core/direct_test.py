@@ -63,7 +63,7 @@ try:
             app_state.messages.append(message)
             
             # Process with orchestrator
-            result = await orchestrator.invoke(app_state)
+            result = await orchestrator.invoke_state(app_state)
             
             print(f"✓ {mode} mode processed successfully")
             print(f"  Response type: {type(result)}")

@@ -11,7 +11,15 @@ import os
 import sys
 from io import BytesIO
 import markdown
-from weasyprint import HTML, CSS
+
+# Optional WeasyPrint import for PDF generation - temporarily disabled
+# try:
+#     from weasyprint import HTML, CSS
+#     WEASYPRINT_AVAILABLE = True
+# except ImportError:
+WEASYPRINT_AVAILABLE = False
+HTML = None
+CSS = None
 
 # Ensure project root is in path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
@@ -19,7 +27,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core.agents.research_agent import ResearchAgent, ResearchMode
-from core.services.enhanced_llm_service_main import EnhancedLLMService
+from core.services.enhanced_llm_service import EnhancedLLMService
 from core.services.memory_service import MemoryService, MemoryType
 from core.models import LogEntry
 
@@ -388,6 +396,12 @@ async def get_research_result(result_id: str) -> JSONResponse:
 async def export_research_pdf(request: ExportRequest) -> StreamingResponse:
     """Export research result as PDF"""
     try:
+        if not WEASYPRINT_AVAILABLE:
+            raise HTTPException(
+                status_code=503, 
+                detail="PDF export is not available. WeasyPrint dependencies are not installed."
+            )
+            
         if request.result_id not in research_storage:
             raise HTTPException(status_code=404, detail="Research result not found")
         
