@@ -73,7 +73,7 @@ async def ultra_orchestrator_node(state: AppState) -> AppState:
     # Add conversation history logging for Build 1
     state.logs.append(LogEntry(
         source="WorkflowGraph",
-        message=f"Processing user message: '{state.user_input}'"
+        message=f"Processing user message: '{state.user_prompt}'"
     ))
     
     # Process through orchestrator

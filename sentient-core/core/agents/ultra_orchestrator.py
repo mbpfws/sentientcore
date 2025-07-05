@@ -86,7 +86,7 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
 
     async def invoke(self, state: AppState) -> AppState:
         """
-        The main entry point for the Ultra Orchestrator's decision-making process.
+        Process user input and provide conversational response for Build 1.
         """
         print("---ULTRA ORCHESTRATOR: INVOKING---")
         
@@ -113,25 +113,18 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
             decision_data = json.loads(cleaned_response)
 
             # Update the state based on the decision
-            state.messages.append(Message(sender="assistant", content=decision_data["conversational_response"]))
+            state.messages.append(Message(
+                sender="assistant", 
+                content=decision_data.get("conversational_response", "I'm here to help! How can I assist you?")
+            ))
             
-            # Store the entire decision object in the state for other agents to use
+            # Store the entire decision object in the state (simplified for Build 1)
             state.orchestrator_decision = decision_data
 
-            if decision_data.get("decision") == "create_plan" and decision_data.get("plan"):
-                # Convert agent_type to lowercase to match the Enum
-                for task_data in decision_data["plan"]:
-                    if 'agent_type' in task_data:
-                        task_data['agent_type'] = task_data['agent_type'].lower()
-                
-                new_tasks = [EnhancedTask(**task_data) for task_data in decision_data["plan"]]
-                state.tasks.extend(new_tasks)
-                log_message = f"Created a new plan with {len(new_tasks)} tasks."
-            else:
-                log_message = f"Decision: '{decision_data.get('decision')}'. No new tasks created."
-
+            # Log the conversation turn completion
+            log_message = f"Conversation turn completed. Language: {decision_data.get('language_detected', 'unknown')}"
             state.logs.append(LogEntry(source="UltraOrchestrator", message=log_message))
-            state.next_action = decision_data.get("decision")
+            state.next_action = decision_data.get("decision", "continue_conversation")
 
         except (json.JSONDecodeError, KeyError) as e:
             error_message = f"Error processing LLM response: {e}. Raw response: '{raw_response[:500]}...'"
