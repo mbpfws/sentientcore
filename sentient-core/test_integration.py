@@ -28,13 +28,12 @@ async def test_core_services():
         # Test StateService
         from core.services.state_service import StateService
         state_service = StateService()
-        await state_service.initialize()
+        await state_service.start()  # Use start() method
         print("✅ StateService initialized successfully")
         
         # Test EnhancedLLMService
-        from core.services.enhanced_llm_service import EnhancedLLMService
-        llm_service = EnhancedLLMService()
-        await llm_service.initialize()
+        from core.services.llm_service import EnhancedLLMService
+        llm_service = EnhancedLLMService()  # Initializes in constructor
         print("✅ EnhancedLLMService initialized successfully")
         
         # Test WorkflowOrchestrator
