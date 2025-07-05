@@ -6,7 +6,7 @@ generating high-level architectural designs and specifications.
 
 import logging
 from typing import Dict, Any, List, Optional, Literal
-from langgraph import StateGraph, END
+from langgraph.graph import StateGraph, END
 from langgraph.graph import CompiledGraph
 from pydantic import BaseModel, Field
 
