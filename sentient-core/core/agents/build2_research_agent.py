@@ -110,6 +110,44 @@ class Build2ResearchAgent:
                 "content": json.dumps({"error": str(e)})
             }
     
+    async def invoke(self, user_message: str, session_id: str = None) -> Dict[str, Any]:
+        """
+        Main entry point for the research agent - compatible with UltraOrchestrator interface.
+        """
+        try:
+            # Create a new AppState for this research session
+            from core.models import Message
+            state = AppState(
+                messages=[Message(sender="user", content=user_message)],
+                logs=[],
+                session_id=session_id or "default"
+            )
+            
+            # Conduct the research
+            result_state = await self.conduct_research(user_message, state, session_id or "default")
+            
+            # Extract the research results from the state
+            research_logs = [log.message for log in result_state.logs if log.source == "Build2_ResearchAgent"]
+            
+            return {
+                "status": "success",
+                "research_query": user_message,
+                "logs": research_logs,
+                "session_id": session_id,
+                "message": "Research completed successfully. Detailed findings have been generated and saved."
+            }
+            
+        except Exception as e:
+            error_msg = f"Research agent error: {str(e)}"
+            print(error_msg)
+            return {
+                "status": "error",
+                "research_query": user_message,
+                "error": error_msg,
+                "session_id": session_id,
+                "message": f"I encountered an issue while conducting research: {str(e)}"
+            }
+    
     async def conduct_research(self, query: str, state: AppState, session_id: str) -> AppState:
         """
         Conduct autonomous research using Groq's agentic tooling.
