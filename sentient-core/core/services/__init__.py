@@ -9,7 +9,7 @@ This module provides essential services for the multi-agent system including:
 
 from .state_service import StateService, state_service_context
 from .llm_service import EnhancedLLMService, LLMProvider
-from .vector_service import VectorService
+from .vector_service import EnhancedVectorService as VectorService
 from .e2b_service import E2BService
 
 __all__ = [
