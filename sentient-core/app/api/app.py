@@ -27,13 +27,14 @@ app.add_middleware(
 )
 
 # Import routers
-from app.api.routers import agents, workflows, chat, core_services
+from app.api.routers import agents, workflows, chat, core_services, api_endpoints
 
 # Register routers with /api prefix
 app.include_router(agents.router, prefix="/api")
 app.include_router(workflows.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(core_services.router, prefix="/api")
+app.include_router(api_endpoints.router, prefix="/api")
 
 @app.get("/")
 async def root():
