@@ -16,10 +16,81 @@ from ..services.enhanced_llm_service_main import ToolFunction
 logger = logging.getLogger(__name__)
 
 class WebSearchTools:
-    """Web search tools for agentic workflows"""
+    """Web search tools for Groq's agentic models"""
     
     def __init__(self):
         self.search_service = SearchService()
+    
+    def get_tool_functions(self):
+        """Return list of tool functions for registration with LLM service"""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "description": "Perform a general web search for broad information gathering",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The search query"
+                            },
+                            "max_results": {
+                                "type": "integer",
+                                "description": "Maximum number of results to return (default: 10)",
+                                "default": 10
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "technical_search",
+                    "description": "Perform a technical search for detailed, specialized information",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The technical search query"
+                            },
+                            "max_results": {
+                                "type": "integer",
+                                "description": "Maximum number of results to return (default: 8)",
+                                "default": 8
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "research_search",
+                    "description": "Perform an academic/research-focused search for in-depth analysis",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The research query"
+                            },
+                            "max_results": {
+                                "type": "integer",
+                                "description": "Maximum number of results to return (default: 12)",
+                                "default": 12
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            }
+        ]
         self.tools = self._create_tools()
     
     def _create_tools(self) -> List[Dict[str, Any]]:

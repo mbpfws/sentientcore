@@ -238,10 +238,10 @@ Focus on gathering different approaches, solutions, or tools, then evaluating th
 
     async def execute_search(self, state: ResearchState, stream_callback=None) -> ResearchState:
         """
-        Executes the next pending web search using compound models with tool access.
-        Supports streaming for real-time updates.
+        Executes the next pending web search using Groq's compound-beta model with agentic tooling.
+        Supports streaming for real-time updates and verbose search results.
         """
-        print("---RESEARCH AGENT: EXECUTING SEARCH---")
+        print("---RESEARCH AGENT: EXECUTING AGENTIC SEARCH---")
         
         pending_step = next((step for step in state.steps if step.status == "pending"), None)
         if not pending_step:
@@ -249,7 +249,7 @@ Focus on gathering different approaches, solutions, or tools, then evaluating th
             state.logs.append(LogEntry(source="ResearchAgent", message="No pending search steps found."))
             return state
 
-        log_msg = f"Executing search for: '{pending_step.query}'"
+        log_msg = f"Executing agentic search for: '{pending_step.query}'"
         self.log_activity(ActivityType.PROCESSING, log_msg)
         state.logs.append(LogEntry(source="ResearchAgent", message=log_msg))
         print(log_msg)
@@ -262,60 +262,70 @@ Focus on gathering different approaches, solutions, or tools, then evaluating th
                 "message": log_msg
             })
 
-        # Use compound-mini-beta for efficient search with tool access
+        # Use compound-beta with agentic tooling for comprehensive search
         system_prompt = """
-You are a world-class research analyst with access to web search tools.
-Conduct a thorough search and provide comprehensive findings.
+You are a world-class research analyst with access to advanced web search tools.
+Conduct thorough, multi-faceted research using the available search tools.
 
 Instructions:
-1. Search for current, accurate information
-2. Look for multiple sources and perspectives
-3. Include specific facts, figures, and data points
-4. Note any conflicting information or debates
-5. Provide source context where relevant
+1. Use multiple search tools to gather comprehensive information
+2. Perform both general and technical searches when relevant
+3. Look for current, accurate information from multiple sources
+4. Include specific facts, figures, data points, and examples
+5. Note any conflicting information, debates, or different perspectives
+6. Provide detailed source context and credibility assessment
+7. Be verbose and thorough in your analysis
 
-Format your response as a detailed research finding with clear structure.
+Search Strategy:
+- Start with general web search for broad understanding
+- Use technical search for detailed/specialized information
+- Use research search for academic or in-depth analysis
+- Synthesize findings from all searches into comprehensive results
+
+Format your response with clear structure, detailed findings, and source attribution.
 """
         
         try:
-            # Try streaming first
-            response_stream = self.llm_service.invoke(
+            # Use generate_with_tools for agentic search capabilities
+            search_result = await self.llm_service.generate_with_tools(
                 system_prompt=system_prompt,
-                user_prompt=f"Research this query thoroughly: {pending_step.query}",
+                user_prompt=f"Research this query thoroughly using all available search tools: {pending_step.query}",
                 model=self.models["search"],
-                stream=True
+                stream=stream_callback is not None
             )
             
-            # Collect streamed response
-            search_result = ""
-            for chunk in response_stream:
-                if chunk.choices[0].delta.content:
-                    content_chunk = chunk.choices[0].delta.content
-                    search_result += content_chunk
-                    
-                    # Stream to frontend
-                    if stream_callback:
+            # Handle streaming response
+            if stream_callback and hasattr(search_result, '__iter__'):
+                accumulated_result = ""
+                for chunk in search_result:
+                    if hasattr(chunk, 'choices') and chunk.choices[0].delta.content:
+                        content_chunk = chunk.choices[0].delta.content
+                        accumulated_result += content_chunk
+                        
+                        # Stream to frontend
                         stream_callback({
                             "type": "search_chunk",
                             "query": pending_step.query,
                             "chunk": content_chunk,
-                            "accumulated": search_result
+                            "accumulated": accumulated_result
                         })
+                search_result = accumulated_result
                         
         except Exception as e:
-            # Fallback to non-streaming
-            print(f"Streaming failed, falling back to non-streaming: {e}")
-            search_result = await self.llm_service.invoke(
-                system_prompt=system_prompt,
+            # Fallback to regular generation without tools
+            print(f"Agentic search failed, falling back to regular search: {e}")
+            self.log_activity(ActivityType.ERROR, f"Agentic search failed: {str(e)}")
+            
+            search_result = await self.llm_service.generate(
+                system_prompt="You are a research analyst. Provide comprehensive research findings.",
                 user_prompt=f"Research this query thoroughly: {pending_step.query}",
-                model=self.models["search"],
-                stream=False
+                model=self.models["search"]
             )
         
         pending_step.result = search_result
         pending_step.status = "completed"
         
-        log_msg = f"Search for '{pending_step.query}' completed."
+        log_msg = f"Agentic search for '{pending_step.query}' completed with verbose results."
         self.log_activity(ActivityType.PROCESSING, log_msg)
         state.logs.append(LogEntry(source="ResearchAgent", message=log_msg))
         print(log_msg)
