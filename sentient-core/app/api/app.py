@@ -38,5 +38,10 @@ app.include_router(api_endpoints.router, prefix="/api")
 
 @app.get("/")
 async def root():
-    """Health check endpoint"""
+    """Root endpoint"""
     return {"status": "ok", "message": "Sentient Core API is running"}
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "message": "Sentient Core API is operational"}
