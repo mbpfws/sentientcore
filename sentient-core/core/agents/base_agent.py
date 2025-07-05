@@ -46,6 +46,7 @@ class ActivityType(str, Enum):
     RESOURCE_ACCESS = "resource_access"
     DECISION_MADE = "decision_made"
     CUSTOM = "custom"
+    PROCESSING = "processing"
 
 class BaseAgent(ABC):
     """Base class for all agents in the multi-agent system

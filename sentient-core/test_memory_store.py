@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+sentient-core/#!/usr/bin/env python3
 
 import asyncio
 import requests
