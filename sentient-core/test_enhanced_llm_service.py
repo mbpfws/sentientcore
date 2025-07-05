@@ -62,7 +62,7 @@ async def test_enhanced_llm_service():
     print("\n4. Testing streaming...")
     try:
         print("Streaming response: ", end="")
-        async for chunk in await llm_service.invoke(
+        async for chunk in llm_service.invoke(
             system_prompt="You are a helpful assistant.",
             user_prompt="Count from 1 to 5.",
             model="llama3-8b-8192",

@@ -13,7 +13,7 @@ from core.agents.ultra_orchestrator import UltraOrchestrator
 from core.agents.research_agent import ResearchAgent
 from core.models import AppState, Message, ResearchState, ResearchStep, LogEntry
 from core.services.llm_service import EnhancedLLMService
-from graphs.research_graph import research_app
+from core.graphs.research_graph import research_app
 
 class WorkingAgentTester:
     """Tests actual agent functionality with proper async handling and interfaces."""
@@ -89,7 +89,7 @@ class WorkingAgentTester:
                 f"Test failed with error: {str(e)}"
             )
     
-    def test_research_agent_basic(self):
+    async def test_research_agent_basic(self):
         """Test ResearchAgent basic functionality."""
         print("\n=== Testing ResearchAgent Basic Functionality ===")
         
@@ -111,7 +111,7 @@ class WorkingAgentTester:
             )
             
             # Test plan_steps method
-            planned_state = research_agent.plan_steps(research_state)
+            planned_state = await research_agent.plan_steps(research_state)
             
             if planned_state.steps and len(planned_state.steps) > 0:
                 self.log_result(
@@ -186,7 +186,7 @@ class WorkingAgentTester:
                 f"Test failed with error: {str(e)}"
             )
     
-    def test_conversation_flow(self):
+    async def test_conversation_flow(self):
         """Test a realistic conversation flow between user and orchestrator."""
         print("\n=== Testing Realistic Conversation Flow ===")
         
@@ -207,7 +207,7 @@ class WorkingAgentTester:
                 app_state.messages.append(Message(sender="user", content=user_input))
                 
                 # Get orchestrator response
-                result_dict = orchestrator.invoke(app_state)
+                result_dict = await orchestrator.invoke(app_state)
                 
                 # Update app_state from result
                 app_state.messages = [Message(**msg) for msg in result_dict.get("messages", [])]
@@ -246,7 +246,7 @@ class WorkingAgentTester:
                 f"Test failed with error: {str(e)}"
             )
     
-    def test_end_to_end_research(self):
+    async def test_end_to_end_research(self):
         """Test complete research process from planning to synthesis."""
         print("\n=== Testing End-to-End Research Process ===")
         
@@ -261,7 +261,7 @@ class WorkingAgentTester:
                 final_report=None
             )
             
-            planned_state = research_agent.plan_steps(initial_state)
+            planned_state = await research_agent.plan_steps(initial_state)
             
             if not planned_state.steps:
                 self.log_result(
@@ -273,7 +273,7 @@ class WorkingAgentTester:
             
             # Step 2: Execute one search step (to avoid long execution)
             if planned_state.steps:
-                executed_state = research_agent.execute_search(planned_state)
+                executed_state = await research_agent.execute_search(planned_state)
                 
                 completed_steps = [step for step in executed_state.steps if step.status == "completed"]
                 if completed_steps:
@@ -288,7 +288,7 @@ class WorkingAgentTester:
                     )
                     
                     # Step 3: Synthesize report
-                    final_state = research_agent.synthesize_report(executed_state)
+                    final_state = await research_agent.synthesize_report(executed_state)
                     
                     if final_state.final_report:
                         self.log_result(
@@ -326,11 +326,11 @@ class WorkingAgentTester:
         
         # Run synchronous tests
         self.test_ultra_orchestrator_basic()
-        self.test_research_agent_basic()
-        self.test_conversation_flow()
-        self.test_end_to_end_research()
         
         # Run async tests
+        await self.test_research_agent_basic()
+        await self.test_conversation_flow()
+        await self.test_end_to_end_research()
         await self.test_research_workflow_async()
         
         # Generate summary

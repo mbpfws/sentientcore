@@ -430,7 +430,7 @@ class MemoryService:
     """
     
     def __init__(self, db_path: str = "memory_management.db", 
-                 vector_db_path: str = "./memory_vectors"):
+                 vector_db_path: str = "./core/memory_vectors"):
         """Initialize the Memory Management Service
         
         Args:

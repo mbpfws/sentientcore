@@ -268,7 +268,7 @@ class RealSystemTester:
             )
             
             # Test workflow graph import
-            from graphs.research_graph import research_app
+            from core.graphs.research_graph import research_app
             self.log_result(
                 "Direct Import: ResearchWorkflow",
                 "PASS",

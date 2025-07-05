@@ -19,8 +19,21 @@ import base64
 import streamlit as st
 from fpdf import FPDF
 from core.models import AppState, Message, EnhancedTask, TaskStatus, LogEntry
+from core.orchestration import (
+    initialize_workflow_orchestrator,
+    get_workflow_orchestrator,
+    shutdown_workflow_orchestrator
+)
+from core.services.state_service import StateService
+from core.services.llm_service import EnhancedLLMService
 import time
 import json
+import asyncio
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def create_pdf(text: str) -> bytes:
     """Creates a PDF file from a string of text using a Unicode font."""
@@ -44,6 +57,32 @@ def create_pdf(text: str) -> bytes:
         st.error(f"PDF generation error: {str(e)}")
         return b""
 
+async def initialize_services():
+    """Initialize core services asynchronously."""
+    try:
+        # Initialize state service
+        if "state_service" not in st.session_state:
+            st.session_state.state_service = StateService()
+            await st.session_state.state_service.initialize()
+        
+        # Initialize LLM service
+        if "llm_service" not in st.session_state:
+            st.session_state.llm_service = EnhancedLLMService()
+            await st.session_state.llm_service.initialize()
+        
+        # Initialize workflow orchestrator
+        if "workflow_orchestrator" not in st.session_state:
+            st.session_state.workflow_orchestrator = await initialize_workflow_orchestrator(
+                st.session_state.state_service,
+                st.session_state.llm_service
+            )
+        
+        return True
+    except Exception as e:
+        logger.error(f"Failed to initialize services: {e}")
+        st.error(f"Failed to initialize system services: {e}")
+        return False
+
 def initialize_session_state():
     """Initialize all session state variables."""
     if "app_state" not in st.session_state:
@@ -54,6 +93,14 @@ def initialize_session_state():
         st.session_state.show_step_details = True
     if "show_raw_output" not in st.session_state:
         st.session_state.show_raw_output = False
+    if "research_mode" not in st.session_state:
+        st.session_state.research_mode = None
+    if "search_streams" not in st.session_state:
+        st.session_state.search_streams = []
+    if "show_raw_searches" not in st.session_state:
+        st.session_state.show_raw_searches = False
+    if "services_initialized" not in st.session_state:
+        st.session_state.services_initialized = False
 
 def render_sidebar():
     """Render the sidebar with controls and logs."""
@@ -61,15 +108,27 @@ def render_sidebar():
         st.header("🤖 Multi-Agent RAG System")
         
         # Workflow mode selection
-        mode_options = ["intelligent", "multi_agent", "legacy"]
+        mode_options = ["intelligent", "multi_agent", "end_to_end", "legacy"]
         current_index = mode_options.index(st.session_state.workflow_mode) if st.session_state.workflow_mode in mode_options else 0
         
         st.session_state.workflow_mode = st.selectbox(
             "Workflow Mode", 
             mode_options,
             index=current_index,
-            help="Select workflow: Intelligent (natural language orchestration), Multi-Agent RAG, or Legacy mode"
+            help="Select workflow: Intelligent (natural language), Multi-Agent RAG, End-to-End (full pipeline), or Legacy mode"
         )
+        
+        # End-to-end workflow type selection
+        if st.session_state.workflow_mode == "end_to_end":
+            if "end_to_end_type" not in st.session_state:
+                st.session_state.end_to_end_type = "full"
+            
+            st.session_state.end_to_end_type = st.selectbox(
+                "End-to-End Type",
+                ["full", "research_only", "development_only"],
+                index=["full", "research_only", "development_only"].index(st.session_state.end_to_end_type),
+                help="Full: Complete pipeline, Research: Research + Knowledge only, Development: Architecture + Development only"
+            )
         
         st.divider()
         
@@ -118,7 +177,15 @@ def render_sidebar():
         
         # Reset button
         if st.button("🔄 Reset Session", type="secondary"):
-            st.session_state.app_state = AppState()
+            # Cleanup services first
+            cleanup_services()
+            
+            # Clear all session state
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            
+            # Reinitialize basic session state
+            initialize_session_state()
             st.rerun()
         st.header("Control Panel")
 
@@ -269,7 +336,7 @@ def render_raw_search_toggle():
                     if i < len(st.session_state.search_streams) - 1:
                         st.markdown("---")
 
-def handle_user_input():
+async def handle_user_input():
     """Handle user input and process it through the orchestration graph."""
     # Check for new prompts from chat input or follow-up clicks
     prompt = st.chat_input("What do you want to build today?")
@@ -297,6 +364,14 @@ def handle_user_input():
             mode_instruction = research_mode_text.get(st.session_state.research_mode, "")
             prompt = f"{mode_instruction}: {prompt}"
         
+        # Ensure services are initialized
+        if not st.session_state.services_initialized:
+            with st.spinner("Initializing system services..."):
+                success = await initialize_services()
+                if not success:
+                    return
+                st.session_state.services_initialized = True
+        
         # Add user message to state
         st.session_state.app_state.messages.append(Message(sender="user", content=prompt, image=image_data))
         st.session_state.app_state.image = image_data
@@ -304,15 +379,49 @@ def handle_user_input():
         # Process through orchestration graph
         with st.spinner("Agent is thinking..."):
             try:
-                # TODO: Implement orchestration logic
-                st.session_state.app_state.logs.append(
-                    LogEntry(source="UI", message="Processing request...")
+                # Get the workflow orchestrator
+                orchestrator = get_workflow_orchestrator()
+                if not orchestrator:
+                    st.error("Workflow orchestrator not available")
+                    return
+                
+                # Process through orchestrator
+                result = await orchestrator.execute_workflow(
+                    user_input=prompt,
+                    workflow_mode=st.session_state.workflow_mode,
+                    research_mode=st.session_state.research_mode,
+                    image_data=image_data
                 )
-                # Add a simple response for now
+                
+                # Add response message
+                response_content = result.get("response", "Request processed successfully.")
                 st.session_state.app_state.messages.append(
-                    Message(sender="assistant", content="Request received and being processed.")
+                    Message(sender="assistant", content=response_content)
                 )
+                
+                # Add tasks if any were created
+                if "tasks" in result:
+                    for task_data in result["tasks"]:
+                        task = EnhancedTask(
+                            id=task_data.get("id", f"task_{len(st.session_state.app_state.tasks) + 1}"),
+                            description=task_data.get("description", "Task"),
+                            status=TaskStatus(task_data.get("status", "pending")),
+                            agent=task_data.get("agent", "orchestrator"),
+                            result=task_data.get("result")
+                        )
+                        st.session_state.app_state.tasks.append(task)
+                
+                # Add log entries if any
+                if "logs" in result:
+                    for log_data in result["logs"]:
+                        log_entry = LogEntry(
+                            source=log_data.get("source", "orchestrator"),
+                            message=log_data.get("message", "")
+                        )
+                        st.session_state.app_state.logs.append(log_entry)
+                        
             except Exception as e:
+                logger.error(f"Error processing request: {e}")
                 st.error(f"Error processing request: {e}")
                 st.session_state.app_state.logs.append(
                     LogEntry(source="UI", message=f"Error: {e}")
@@ -339,9 +448,17 @@ def handle_pending_tasks():
         st.session_state.app_state.task_to_run_id = None
         st.rerun()
 
-def handle_workflow_execution(user_input: str, uploaded_image: bytes = None):
+async def handle_workflow_execution(user_input: str, uploaded_image: bytes = None):
     """Execute the appropriate workflow based on user selection."""
     try:
+        # Ensure services are initialized
+        if not st.session_state.services_initialized:
+            with st.spinner("Initializing system services..."):
+                success = await initialize_services()
+                if not success:
+                    return
+                st.session_state.services_initialized = True
+        
         # Add user message to state
         st.session_state.app_state.messages.append(
             Message(sender="user", content=user_input, image=uploaded_image)
@@ -351,38 +468,111 @@ def handle_workflow_execution(user_input: str, uploaded_image: bytes = None):
         if uploaded_image:
             st.session_state.app_state.image = uploaded_image
         
-        # Choose workflow based on mode
-        if st.session_state.workflow_mode == "intelligent":
-            # Use the intelligent RAG workflow
-            with st.spinner("🧠 Intelligent system analyzing your request..."):
-                # TODO: Implement intelligent RAG workflow
-                result = {"messages": [], "tasks": [], "logs": []}
-        elif st.session_state.workflow_mode == "multi_agent":
-            # Use the new multi-agent RAG workflow
-            with st.spinner("🤖 Multi-Agent system processing your request..."):
-                # TODO: Implement multi-agent RAG workflow
-                result = {"messages": [], "tasks": [], "logs": []}
-        else:
-            # Use legacy orchestration workflow
-            with st.spinner("🔄 Processing your request..."):
-                # TODO: Implement legacy orchestration workflow
-                result = {"messages": [], "tasks": [], "logs": []}
+        # Get the workflow orchestrator
+        orchestrator = get_workflow_orchestrator()
+        if not orchestrator:
+            st.error("Workflow orchestrator not available")
+            return
         
-        # Update state with results
-        if isinstance(result, dict):
-            # Update the app state with the new data
-            if "messages" in result:
-                st.session_state.app_state.messages = [Message(**msg) for msg in result["messages"]]
+        # Process through orchestrator
+        with st.spinner(f"Processing with {st.session_state.workflow_mode} workflow..."):
+            if st.session_state.workflow_mode == "end_to_end":
+                # Use the new end-to-end workflow
+                workflow_type = getattr(st.session_state, 'end_to_end_type', 'full')
+                session_id = f"session_{int(time.time())}"
+                
+                result = await orchestrator.execute_end_to_end_workflow(
+                    user_input=user_input,
+                    session_id=session_id,
+                    workflow_type=workflow_type
+                )
+            else:
+                # Use existing workflow modes
+                result = await orchestrator.execute_workflow(
+                    user_input=user_input,
+                    workflow_mode=st.session_state.workflow_mode,
+                    research_mode=st.session_state.research_mode,
+                    image_data=uploaded_image
+                )
+        
+        # Handle response based on workflow mode
+        if st.session_state.workflow_mode == "end_to_end":
+            # Handle end-to-end workflow results
+            if result.get("success", False):
+                # Add messages from the workflow
+                if "messages" in result:
+                    for msg_data in result["messages"]:
+                        st.session_state.app_state.messages.append(
+                            Message(
+                                sender=msg_data.get("sender", "assistant"),
+                                content=msg_data.get("content", "Workflow completed."),
+                                image=msg_data.get("image")
+                            )
+                        )
+                
+                # Add execution results as logs
+                if "execution_results" in result:
+                    for exec_result in result["execution_results"]:
+                        log_entry = LogEntry(
+                            source=f"Graph: {exec_result.get('graph_type', 'Unknown')}",
+                            message=f"Status: {exec_result.get('status', 'Unknown')} ({exec_result.get('duration_seconds', 0):.2f}s)"
+                        )
+                        st.session_state.app_state.logs.append(log_entry)
+                
+                # Store artifacts in session state for later access
+                if "artifacts" in result:
+                    if "workflow_artifacts" not in st.session_state:
+                        st.session_state.workflow_artifacts = {}
+                    st.session_state.workflow_artifacts.update(result["artifacts"])
+                
+                # Add workflow logs
+                if "logs" in result:
+                    for log_data in result["logs"]:
+                        log_entry = LogEntry(
+                            source=log_data.get("source", "End-to-End Workflow"),
+                            message=log_data.get("message", "")
+                        )
+                        st.session_state.app_state.logs.append(log_entry)
+            else:
+                # Handle workflow error
+                error_msg = result.get("error", "End-to-end workflow failed")
+                st.session_state.app_state.messages.append(
+                    Message(sender="assistant", content=f"❌ **Workflow Error**: {error_msg}")
+                )
+        else:
+            # Handle traditional workflow results
+            response_content = result.get("response", "Request processed successfully.")
+            st.session_state.app_state.messages.append(
+                Message(sender="assistant", content=response_content)
+            )
+            
+            # Add tasks if any were created
             if "tasks" in result:
-                st.session_state.app_state.tasks = [EnhancedTask(**task) for task in result["tasks"]]
+                for task_data in result["tasks"]:
+                    task = EnhancedTask(
+                        id=task_data.get("id", f"task_{len(st.session_state.app_state.tasks) + 1}"),
+                        description=task_data.get("description", "Task"),
+                        status=TaskStatus(task_data.get("status", "pending")),
+                        agent=task_data.get("agent", "orchestrator"),
+                        result=task_data.get("result")
+                    )
+                    st.session_state.app_state.tasks.append(task)
+            
+            # Add log entries if any
             if "logs" in result:
-                st.session_state.app_state.logs = [LogEntry(**log) for log in result["logs"]]
+                for log_data in result["logs"]:
+                    log_entry = LogEntry(
+                        source=log_data.get("source", "orchestrator"),
+                        message=log_data.get("message", "")
+                    )
+                    st.session_state.app_state.logs.append(log_entry)
         
         # Clear image after processing
         st.session_state.app_state.image = None
         
     except Exception as e:
         error_msg = f"Workflow execution error: {str(e)}"
+        logger.error(error_msg)
         st.error(error_msg)
         st.session_state.app_state.logs.append(
             LogEntry(source="UI", message=error_msg)
@@ -439,12 +629,20 @@ def render_executable_tasks():
                         help=f"Execute this {agent_type} task"
                     ):
                         # Execute the task
-                        execute_single_task(task.id)
-                        st.rerun()
+                        try:
+                            import asyncio
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            loop.run_until_complete(execute_single_task(task.id))
+                            loop.close()
+                            st.rerun()
+                        except Exception as e:
+                            logger.error(f"Error executing task: {e}")
+                            st.error(f"Error executing task: {e}")
                 
                 st.divider()
 
-def execute_single_task(task_id: str):
+async def execute_single_task(task_id: str):
     """Execute a single task by ID."""
     # Find the task
     task = None
@@ -454,23 +652,115 @@ def execute_single_task(task_id: str):
             break
     
     if task:
-        # Mark task as in progress
-        task.status = TaskStatus.IN_PROGRESS
-        
-        # Add a message about task execution
-        st.session_state.app_state.messages.append(
-            Message(
-                sender="assistant",
-                content=f"⚡ Executing task: {task.description}"
+        try:
+            # Ensure services are initialized
+            if not st.session_state.services_initialized:
+                st.error("Services not initialized. Please refresh the page.")
+                return
+            
+            # Mark task as in progress
+            task.status = TaskStatus.IN_PROGRESS
+            
+            # Add a message about task execution
+            st.session_state.app_state.messages.append(
+                Message(
+                    sender="assistant",
+                    content=f"⚡ Executing task: {task.description}"
+                )
             )
-        )
+            
+            # Get the workflow orchestrator
+            orchestrator = get_workflow_orchestrator()
+            if not orchestrator:
+                st.error("Workflow orchestrator not available")
+                task.status = TaskStatus.FAILED
+                return
+            
+            # Execute task through orchestrator
+            with st.spinner(f"Executing {task.description}..."):
+                result = await orchestrator.execute_task(
+                    task_id=task.id,
+                    task_description=task.description,
+                    agent_source=getattr(task, 'agent', 'unknown')
+                )
+                
+                if result.get("success", False):
+                    task.result = result.get("result", "Task completed successfully")
+                    task.status = TaskStatus.COMPLETED
+                    st.success(f"Task completed: {task.description}")
+                else:
+                    task.result = result.get("error", "Task execution failed")
+                    task.status = TaskStatus.FAILED
+                    st.error(f"Task failed: {task.result}")
+            
+        except Exception as e:
+            logger.error(f"Error executing task {task.id}: {e}")
+            task.status = TaskStatus.FAILED
+            task.result = f"Task failed: {str(e)}"
+            st.error(f"Task failed: {e}")
+
+def render_workflow_artifacts():
+    """Render workflow artifacts from end-to-end execution."""
+    if hasattr(st.session_state, 'workflow_artifacts') and st.session_state.workflow_artifacts:
+        st.markdown("### 📦 Workflow Artifacts")
         
-        # Execute the workflow to process this task
-        handle_workflow_execution(f"Execute task: {task.description}")
+        # Create tabs for different artifact types
+        artifact_types = list(st.session_state.workflow_artifacts.keys())
+        if artifact_types:
+            tabs = st.tabs([f"📊 {artifact_type.replace('_', ' ').title()}" for artifact_type in artifact_types])
+            
+            for i, (artifact_type, artifacts) in enumerate(st.session_state.workflow_artifacts.items()):
+                with tabs[i]:
+                    if isinstance(artifacts, dict):
+                        # Display structured artifacts
+                        for key, value in artifacts.items():
+                            if isinstance(value, (str, int, float, bool)):
+                                st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
+                            elif isinstance(value, dict):
+                                with st.expander(f"📋 {key.replace('_', ' ').title()}", expanded=False):
+                                    st.json(value)
+                            elif isinstance(value, list):
+                                with st.expander(f"📝 {key.replace('_', ' ').title()}", expanded=False):
+                                    for item in value:
+                                        if isinstance(item, str):
+                                            st.markdown(f"• {item}")
+                                        else:
+                                            st.json(item)
+                    else:
+                        # Display simple artifacts
+                        st.markdown(str(artifacts))
+                    
+                    # Add download button for artifacts
+                    if st.button(f"📥 Download {artifact_type.replace('_', ' ').title()} Artifacts", key=f"download_{artifact_type}"):
+                        artifact_json = json.dumps(artifacts, indent=2, default=str)
+                        st.download_button(
+                            label=f"Download {artifact_type}.json",
+                            data=artifact_json.encode('utf-8'),
+                            file_name=f"{artifact_type}_artifacts.json",
+                            mime="application/json",
+                            key=f"download_btn_{artifact_type}"
+                        )
 
 def render_workflow_status():
     """Render current workflow status and phase information."""
-    if st.session_state.workflow_mode in ["intelligent", "multi_agent"] and st.session_state.show_step_details:
+    if st.session_state.workflow_mode == "end_to_end":
+        st.markdown("### 🔄 End-to-End Workflow Status")
+        
+        # Show execution summary if available
+        if st.session_state.app_state.logs:
+            latest_log = st.session_state.app_state.logs[-1]
+            st.info(f"**Latest Update**: {latest_log.source} - {latest_log.message}")
+            
+            # Show execution timeline
+            if len(st.session_state.app_state.logs) > 1:
+                with st.expander("Execution Timeline", expanded=False):
+                    for log in st.session_state.app_state.logs[-10:]:
+                        st.text(f"✓ {log.source}: {log.message}")
+        
+        # Render artifacts
+        render_workflow_artifacts()
+        
+    elif st.session_state.workflow_mode in ["intelligent", "multi_agent"] and st.session_state.show_step_details:
         st.markdown("### 🔄 Multi-Agent Workflow Status")
         
         # Show current phase based on latest logs
@@ -511,6 +801,26 @@ def main():
     
     # Initialize session state
     initialize_session_state()
+    
+    # Initialize services if not already done
+    if not st.session_state.services_initialized:
+        try:
+            # Run async initialization in a sync context
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            success = loop.run_until_complete(initialize_services())
+            loop.close()
+            
+            if success:
+                st.session_state.services_initialized = True
+            else:
+                st.error("Failed to initialize system services. Please refresh the page.")
+                return
+        except Exception as e:
+            logger.error(f"Error initializing services: {e}")
+            st.error(f"Error initializing services: {e}")
+            return
     
     # Render sidebar
     render_sidebar()
@@ -555,14 +865,62 @@ def main():
     
     # Chat input
     if prompt := st.chat_input("Describe what you want to build or research..."):
-        handle_workflow_execution(prompt, uploaded_image)
-        st.rerun()
+        try:
+            # Run async workflow execution in a sync context
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(handle_workflow_execution(prompt, uploaded_image))
+            loop.close()
+            st.rerun()
+        except Exception as e:
+            logger.error(f"Error handling user input: {e}")
+            st.error(f"Error processing your request: {e}")
     
     # Handle follow-up questions from session state
     if hasattr(st.session_state, 'new_prompt') and st.session_state.new_prompt:
-        handle_workflow_execution(st.session_state.new_prompt)
-        st.session_state.new_prompt = None
-        st.rerun()
+        try:
+            # Run async workflow execution in a sync context
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(handle_workflow_execution(st.session_state.new_prompt))
+            loop.close()
+            st.session_state.new_prompt = None
+            st.rerun()
+        except Exception as e:
+            logger.error(f"Error handling follow-up prompt: {e}")
+            st.error(f"Error processing follow-up request: {e}")
+
+def cleanup_services():
+    """Cleanup function to properly shutdown services."""
+    try:
+        if "workflow_orchestrator" in st.session_state:
+            # Shutdown workflow orchestrator
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(shutdown_workflow_orchestrator())
+            loop.close()
+            
+        # Clear service references
+        for key in ["state_service", "llm_service", "workflow_orchestrator"]:
+            if key in st.session_state:
+                del st.session_state[key]
+                
+        st.session_state.services_initialized = False
+        logger.info("Services cleaned up successfully")
+        
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("Application interrupted by user")
+        cleanup_services()
+    except Exception as e:
+        logger.error(f"Application error: {e}")
+        cleanup_services()
+        raise

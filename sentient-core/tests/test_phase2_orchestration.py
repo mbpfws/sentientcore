@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from core.models import AppState, Message, AgentType
-from graphs.sentient_workflow_graph import app as sentient_workflow_app
+from core.graphs.sentient_workflow_graph import app as sentient_workflow_app
 from typing import Any
 
 def run_workflow_with_prompt(prompt: str) -> AppState:
@@ -134,4 +134,4 @@ def test_sufficient_request_creates_plan_after_clarification():
     assert "task(s)" in monitor_log.message, "Monitor's log should mention the number of tasks created."
 
 # To run these tests, use `pytest` in your terminal from the project root.
-# Example: poetry run pytest sentient-core/tests/test_phase2_orchestration.py 
+# Example: poetry run pytest sentient-core/tests/test_phase2_orchestration.py

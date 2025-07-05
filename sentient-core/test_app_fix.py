@@ -13,7 +13,7 @@ load_dotenv()
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from core.models import AppState, Message
-from graphs.intelligent_rag_graph import intelligent_workflow
+from core.graphs.intelligent_rag_graph import intelligent_workflow
 
 def test_app_input():
     """Test the same input that was causing the error."""
