@@ -12,48 +12,51 @@ def should_continue(state: ResearchState) -> str:
     else:
         return "synthesize_report"
 
-async def execute_search_with_streaming(state: ResearchState) -> ResearchState:
-    """
-    Wrapper function to execute search with streaming support.
-    """
-    # Get streaming callback from state if available
-    stream_callback = getattr(state, 'stream_callback', None)
-    return await research_agent.execute_search(state, stream_callback)
+def create_execute_search_with_streaming(research_agent):
+    """Create execute_search_with_streaming function with research_agent closure."""
+    async def execute_search_with_streaming(state: ResearchState) -> ResearchState:
+        """
+        Wrapper function to execute search with streaming support.
+        """
+        # Get streaming callback from state if available
+        stream_callback = getattr(state, 'stream_callback', None)
+        return await research_agent.execute_search(state, stream_callback)
+    return execute_search_with_streaming
 
-# Initialize services and agents
-llm_service = EnhancedLLMService()
-research_agent = ResearchAgent(llm_service)
-
-# Define the graph
-workflow = StateGraph(ResearchState)
-
-# Add nodes
-workflow.add_node("plan_steps", research_agent.plan_steps)
-workflow.add_node("execute_search", execute_search_with_streaming)
-workflow.add_node("synthesize_report", research_agent.synthesize_report)
-
-# Set entry and exit points
-workflow.set_entry_point("plan_steps")
-workflow.add_edge("synthesize_report", END)
-
-# Add conditional routing
-workflow.add_conditional_edges(
-    "plan_steps",
-    should_continue,
-    {
-        "execute_search": "execute_search",
-        "synthesize_report": "synthesize_report",
-    },
-)
-workflow.add_conditional_edges(
-    "execute_search",
-    should_continue,
-    {
-        "execute_search": "execute_search",
-        "synthesize_report": "synthesize_report",
-    },
-)
-
-
-# Compile the graph
-research_app = workflow.compile()
+def create_research_graph(llm_service: EnhancedLLMService):
+    """Create and return a compiled research graph."""
+    research_agent = ResearchAgent(llm_service)
+    execute_search_with_streaming = create_execute_search_with_streaming(research_agent)
+    
+    # Define the graph
+    workflow = StateGraph(ResearchState)
+    
+    # Add nodes
+    workflow.add_node("plan_steps", research_agent.plan_steps)
+    workflow.add_node("execute_search", execute_search_with_streaming)
+    workflow.add_node("synthesize_report", research_agent.synthesize_report)
+    
+    # Set entry and exit points
+    workflow.set_entry_point("plan_steps")
+    workflow.add_edge("synthesize_report", END)
+    
+    # Add conditional routing
+    workflow.add_conditional_edges(
+        "plan_steps",
+        should_continue,
+        {
+            "execute_search": "execute_search",
+            "synthesize_report": "synthesize_report",
+        },
+    )
+    workflow.add_conditional_edges(
+        "execute_search",
+        should_continue,
+        {
+            "execute_search": "execute_search",
+            "synthesize_report": "synthesize_report",
+        },
+    )
+    
+    # Compile and return the graph
+    return workflow.compile()

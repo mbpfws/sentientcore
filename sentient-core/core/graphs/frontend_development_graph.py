@@ -788,7 +788,7 @@ class FrontendDevelopmentGraphBuilder:
         else:
             return END
     
-    def build_graph(self) -> Graph:
+    def build_graph(self) -> Any:
         """Build and return the frontend development graph."""
         # Create the state graph
         workflow = StateGraph(FrontendDevelopmentState)
@@ -863,7 +863,7 @@ def create_frontend_development_graph(
     llm_service: EnhancedLLMService,
     memory_service: MemoryService,
     state_service: StateService
-) -> Graph:
+) -> Any:
     """Factory function to create a frontend development graph."""
     builder = FrontendDevelopmentGraphBuilder(llm_service, memory_service, state_service)
     return builder.build_graph()

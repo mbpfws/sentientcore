@@ -12,7 +12,7 @@ from langgraph.graph import StateGraph, END
 from pydantic import BaseModel, Field
 
 from ..models import AppState, TaskStatus, AgentType
-from ..agents.architect_planner import ArchitectPlanner
+from ..agents.architect_planner_agent import ArchitectPlannerAgent
 from ..agents.research_agent import ResearchAgent
 from ..services.llm_service import EnhancedLLMService
 from ..utils.logger import get_logger
@@ -94,7 +94,7 @@ class ProjectArchitectureGraphBuilder:
     
     def __init__(self, llm_service: EnhancedLLMService):
         self.llm_service = llm_service
-        self.architect_planner = ArchitectPlanner(llm_service)
+        self.architect_planner = ArchitectPlannerAgent(llm_service)
         self.research_agent = ResearchAgent(llm_service)
         
     def create_graph(self) -> Any:
