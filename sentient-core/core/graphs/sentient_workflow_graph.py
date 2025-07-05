@@ -158,11 +158,14 @@ class MockWorkflowApp:
     """Mock workflow app for testing when compilation fails"""
     async def ainvoke(self, state: AppState, **kwargs):
         """Mock async invoke method"""
-        state.messages.append({
-            "sender": "assistant",
-            "content": "System is currently initializing. Please try again in a moment.",
-            "created_at": "2024-01-01T00:00:00Z"
-        })
+        state.messages.append(Message(
+            sender="assistant",
+            content="System is currently initializing. Please try again in a moment."
+        ))
+        state.logs.append(LogEntry(
+            source="MockWorkflowApp",
+            message="Mock workflow app invoked - system initializing"
+        ))
         return state
 
 # Compile the workflow with error handling

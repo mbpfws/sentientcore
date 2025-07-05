@@ -66,7 +66,7 @@ async def process_chat_message(chat_request: ChatRequest):
         # Process through the sentient workflow graph
         try:
             workflow_app = get_sentient_workflow_app()
-            result = await workflow_app.ainvoke(app_state.model_dump())
+            result = await workflow_app.ainvoke(app_state)
         except Exception as workflow_error:
             # Fallback to a helpful error message if workflow fails
             error_response = Message(
