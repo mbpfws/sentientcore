@@ -1,6 +1,7 @@
 from core.models import EnhancedTask, AppState, TaskStatus, ResearchState, ResearchStep, LogEntry
 from core.services.llm_service import EnhancedLLMService
 from core.agents.base_agent import BaseAgent, AgentCapability, ActivityType
+from core.tools.web_search_tools import WebSearchTools
 import json
 import re
 from typing import Dict, List, Tuple, Optional
@@ -25,17 +26,33 @@ class ResearchAgent(BaseAgent):
             agent_id=agent_id,
             name="Research Agent",
             capabilities=[AgentCapability.RESEARCH, AgentCapability.ANALYSIS],
-            description="Advanced research agent with multiple research modes"
+            description="Advanced research agent with multiple research modes and agentic tooling"
         )
         self.llm_service = llm_service
+        self.web_search_tools = WebSearchTools()
         
-        # Model selection based on research complexity
+        # Model selection based on research complexity - using Groq compound-beta models
         self.models = {
             "planning": "compound-beta",  # Best for planning and tool use
-            "search": "compound-mini-beta",  # Efficient for search tasks
+            "search": "compound-beta",  # Use compound-beta for agentic search with tools
             "synthesis": "compound-beta",  # Best for complex synthesis
             "reasoning": "compound-beta"  # Best for deep reasoning
         }
+        
+        # Register web search tools with LLM service
+        self._register_search_tools()
+    
+    def _register_search_tools(self):
+        """Register web search tools with the LLM service for agentic tooling"""
+        try:
+            # Register tool functions
+            tool_functions = self.web_search_tools.get_tool_functions()
+            for tool_func in tool_functions:
+                self.llm_service.register_tool(tool_func)
+            
+            self.log_activity(ActivityType.PROCESSING, "Web search tools registered successfully")
+        except Exception as e:
+            self.log_activity(ActivityType.ERROR, f"Failed to register web search tools: {str(e)}")
 
     def can_handle_task(self, task: EnhancedTask) -> bool:
         """
