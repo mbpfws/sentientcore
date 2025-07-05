@@ -24,8 +24,16 @@ from .interactive_workflow_models import (
 )
 from ..models import AppState
 
-class InteractiveStateChangeType(StateChangeType):
+class InteractiveStateChangeType:
     """Extended state change types for interactive workflows."""
+    # Base state change types (from StateChangeType)
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+    MERGE = "merge"
+    ROLLBACK = "rollback"
+    
+    # Interactive workflow specific types
     WORKFLOW_CREATED = "workflow_created"
     WORKFLOW_STARTED = "workflow_started"
     WORKFLOW_PAUSED = "workflow_paused"
