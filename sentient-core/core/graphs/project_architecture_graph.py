@@ -7,7 +7,8 @@ generating high-level architectural designs and specifications.
 import logging
 from typing import Dict, Any, List, Optional, Literal
 from langgraph.graph import StateGraph, END
-from langgraph.graph import CompiledGraph
+# CompiledGraph type is not available in current langgraph version
+# Using Any for type annotation
 from pydantic import BaseModel, Field
 
 from ..models import AppState, TaskStatus, AgentType
@@ -96,7 +97,7 @@ class ProjectArchitectureGraphBuilder:
         self.architect_planner = ArchitectPlanner(llm_service)
         self.research_agent = ResearchAgent(llm_service)
         
-    def create_graph(self) -> CompiledGraph:
+    def create_graph(self) -> Any:
         """Create and compile the project architecture graph."""
         
         # Create the state graph
@@ -625,7 +626,7 @@ class ProjectArchitectureGraphBuilder:
             return "validate"
 
 # Factory function for creating project architecture graph
-def create_project_architecture_graph(llm_service: EnhancedLLMService) -> CompiledGraph:
+def create_project_architecture_graph(llm_service: EnhancedLLMService) -> Any:
     """Create and return a compiled project architecture graph."""
     builder = ProjectArchitectureGraphBuilder(llm_service)
     return builder.create_graph()

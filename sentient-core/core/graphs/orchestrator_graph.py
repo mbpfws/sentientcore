@@ -7,7 +7,8 @@ user interaction, and high-level task delegation as specified in the improvement
 import logging
 from typing import Dict, Any, List, Optional, Literal
 from langgraph.graph import StateGraph, END
-from langgraph.graph import CompiledGraph
+# CompiledGraph type is not available in current langgraph version
+# Using Any for type annotation
 from pydantic import BaseModel, Field
 
 from ..models import AppState, TaskStatus, AgentType, SessionState
@@ -72,7 +73,7 @@ class OrchestratorGraphBuilder:
         self.ultra_orchestrator = UltraOrchestrator(llm_service)
         self.monitoring_agent = MonitoringAgent(llm_service)
         
-    def create_graph(self) -> CompiledGraph:
+    def create_graph(self) -> Any:
         """Create and compile the orchestrator graph."""
         
         # Create the state graph
@@ -575,7 +576,7 @@ class OrchestratorGraphBuilder:
         return datetime.now().isoformat()
 
 # Factory function for creating orchestrator graph
-def create_orchestrator_graph(llm_service: EnhancedLLMService) -> CompiledGraph:
+def create_orchestrator_graph(llm_service: EnhancedLLMService) -> Any:
     """Create and return a compiled orchestrator graph."""
     builder = OrchestratorGraphBuilder(llm_service)
     return builder.create_graph()
