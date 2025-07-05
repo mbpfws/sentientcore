@@ -19,6 +19,61 @@ export interface Agent {
   capabilities: Capability[];
 }
 
+// Agent State types
+export interface AgentState {
+  status: 'active' | 'busy' | 'idle' | 'error';
+  current_task?: string;
+  last_activity?: string;
+  error_message?: string;
+}
+
+// Workflow types
+export interface Workflow {
+  id: string;
+  name: string;
+  description: string;
+  icon?: string;
+}
+
+export interface WorkflowState {
+  id: string;
+  status: 'running' | 'completed' | 'failed' | 'paused';
+  current_step?: string;
+  progress?: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+// Memory types
+export interface MemoryItem {
+  id: string;
+  content: string;
+  type: 'text' | 'image' | 'file';
+  created_at: string;
+  metadata?: any;
+}
+
+// Search types
+export interface SearchResult {
+  id: string;
+  title: string;
+  content: string;
+  url?: string;
+  source: string;
+  relevance_score?: number;
+  created_at: string;
+}
+
+// Service Health types
+export interface ServiceHealth {
+  memory_service: boolean;
+  state_service: boolean;
+  search_service: boolean;
+  vector_service: boolean;
+  llm_service?: boolean;
+  overall_status: 'healthy' | 'degraded' | 'down';
+}
+
 // Task types
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'done';
 
@@ -50,12 +105,4 @@ export interface Message {
   content: string;
   created_at: string;
   metadata?: any;
-}
-
-// Workflow types
-export interface Workflow {
-  id: string;
-  name: string;
-  description: string;
-  icon?: string;
 }

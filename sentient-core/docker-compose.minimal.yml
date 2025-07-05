@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # Backend API service with minimal dependencies
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.minimal
+    container_name: sentient-core-backend-minimal
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite:///./memory_management.db
+      - VECTOR_DB_PATH=./memory_vectors
+    volumes:
+      - ./.env:/app/.env
+      - ./memory_management.db:/app/memory_management.db
+      - ./memory_vectors:/app/memory_vectors
+    restart: unless-stopped
+    networks:
+      - sentient-network
+
+  # Frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sentient-core-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - sentient-network
+
+networks:
+  sentient-network:
+    driver: bridge 

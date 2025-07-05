@@ -1,0 +1,76 @@
+services:
+  # Backend API service (development mode)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - BUILDKIT_STEP_LOG_MAX_SIZE=10485760
+        - PIP_DEFAULT_TIMEOUT=100
+    container_name: sentient-core-backend-dev
+    command: poetry run uvicorn app.api.app:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite:///./memory_management.db
+      - VECTOR_DB_PATH=./memory_vectors
+      - POETRY_HTTP_TIMEOUT=300
+      - DEBUG=1
+    volumes:
+      - .:/app  # Mount the entire project for hot reloading
+      - ./.env:/app/.env
+    restart: unless-stopped
+    networks:
+      - sentient-network
+
+  # Frontend service (development mode)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: sentient-core-frontend-dev
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app  # Mount for hot reloading
+      - /app/node_modules  # Prevent overriding node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - sentient-network
+
+  # Streamlit UI service for development and debugging
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - BUILDKIT_STEP_LOG_MAX_SIZE=10485760
+        - PIP_DEFAULT_TIMEOUT=100
+    container_name: sentient-core-streamlit-dev
+    command: poetry run streamlit run app/main.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite:///./memory_management.db
+      - VECTOR_DB_PATH=./memory_vectors
+      - POETRY_HTTP_TIMEOUT=300
+      - DEBUG=1
+    volumes:
+      - .:/app  # Mount for hot reloading
+      - ./.env:/app/.env
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - sentient-network
+
+networks:
+  sentient-network:
+    driver: bridge 

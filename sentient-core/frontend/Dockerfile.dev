@@ -1,0 +1,17 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy application code
+COPY . .
+
+# Expose port for Next.js development
+EXPOSE 3000
+
+# Command to run the application in development mode
+# Will be overridden by docker-compose command
+CMD ["npm", "run", "dev"] 
