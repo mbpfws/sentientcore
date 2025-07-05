@@ -121,7 +121,7 @@ Your entire response MUST be a single, valid JSON object. Do not add any text be
             return match.group(1)
         return response
 
-    async def invoke(self, state: AppState) -> Dict[str, Any]:
+    async def invoke(self, state: AppState) -> AppState:
         """
         The main entry point for the Ultra Orchestrator's decision-making process.
         """

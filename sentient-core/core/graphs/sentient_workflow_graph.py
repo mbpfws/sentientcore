@@ -4,7 +4,7 @@ This is the main, top-level graph that orchestrates the entire multi-agent syste
 """
 
 from langgraph.graph import StateGraph, END
-from core.models import AppState
+from core.models import AppState, Message, LogEntry
 from core.agents.ultra_orchestrator import UltraOrchestrator
 from core.agents.monitoring_agent import MonitoringAgent
 from core.services.llm_service import EnhancedLLMService
@@ -61,11 +61,14 @@ class MockLLMService:
 class MockUltraOrchestrator:
     """Mock Ultra Orchestrator for testing when real orchestrator fails to initialize"""
     async def invoke(self, state: AppState) -> AppState:
-        state.messages.append({
-            "sender": "assistant",
-            "content": "System is initializing. Please try again in a moment.",
-            "created_at": "2024-01-01T00:00:00Z"
-        })
+        state.messages.append(Message(
+            sender="assistant",
+            content="System is initializing. Please try again in a moment."
+        ))
+        state.logs.append(LogEntry(
+            source="MockUltraOrchestrator",
+            message="Mock orchestrator invoked - system initializing"
+        ))
         state.next_action = "end"
         return state
 
