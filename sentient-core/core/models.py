@@ -103,6 +103,7 @@ class LogEntry(BaseModel):
 class ResearchStep(BaseModel):
     """Represents a single step in a research process."""
     query: str
+    description: Optional[str] = ""  # ✅ Add this line
     status: str = "pending"
     result: Optional[str] = None
     sources: List[str] = Field(default_factory=list)

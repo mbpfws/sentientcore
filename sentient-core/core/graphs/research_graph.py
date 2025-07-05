@@ -60,3 +60,6 @@ def create_research_graph(llm_service: EnhancedLLMService):
     
     # Compile and return the graph
     return workflow.compile()
+# Create a default research_app instance using EnhancedLLMService
+llm_service = EnhancedLLMService()
+research_app = create_research_graph(llm_service)

@@ -166,7 +166,7 @@ class AgentExecutionTester:
                 )
                 
                 # Process the message
-                result = await orchestrator.process_message(app_state)
+                result = await orchestrator.invoke(app_state)
                 
                 if result and hasattr(result, 'messages') and len(result.messages) > 1:
                     response_content = result.messages[-1].content
@@ -221,7 +221,7 @@ class AgentExecutionTester:
                 )
                 
                 # Execute the workflow
-                result = research_app.invoke(initial_state)
+                result = await research_app.ainvoke(initial_state)
                 
                 if result and hasattr(result, 'final_report') and result.final_report:
                     self.log_result(
@@ -287,7 +287,7 @@ class AgentExecutionTester:
             )
             
             # Step 1: Orchestrator processes the request
-            orchestrated_result = await orchestrator.process_message(app_state)
+            orchestrated_result = await orchestrator.invoke(app_state)
             
             if orchestrated_result:
                 self.log_result(

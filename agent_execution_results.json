@@ -1,0 +1,86 @@
+{
+  "total_tests": 9,
+  "status_counts": {
+    "PASS": 8,
+    "FAIL": 1
+  },
+  "detailed_results": [
+    {
+      "test_name": "Research Agent: Initialization",
+      "status": "PASS",
+      "details": "Successfully initialized ResearchAgent with LLM service",
+      "data": null,
+      "timestamp": "2025-07-05T15:14:07.697792"
+    },
+    {
+      "test_name": "Research Agent: Planning",
+      "status": "PASS",
+      "details": "Generated 5 research steps",
+      "data": {
+        "steps_count": 5,
+        "first_step": ""
+      },
+      "timestamp": "2025-07-05T15:14:11.712175"
+    },
+    {
+      "test_name": "Research Agent: Search Execution",
+      "status": "PASS",
+      "details": "Completed 1 research steps",
+      "data": {
+        "completed_steps": 1,
+        "first_result": "## Research Findings: Vietnamese Natural Language Processing (NLP) Libraries for Mobile Development\n"
+      },
+      "timestamp": "2025-07-05T15:14:19.269345"
+    },
+    {
+      "test_name": "Ultra Orchestrator: Initialization",
+      "status": "PASS",
+      "details": "Successfully initialized UltraOrchestrator",
+      "data": null,
+      "timestamp": "2025-07-05T15:14:19.578118"
+    },
+    {
+      "test_name": "Ultra Orchestrator: Message Processing",
+      "status": "PASS",
+      "details": "Generated response: 361 characters",
+      "data": {
+        "response_length": 361,
+        "response_preview": "T\u00f4i c\u00f3 th\u1ec3 gi\u00fap b\u1ea1n t\u1ea1o \u1ee9ng d\u1ee5ng h\u1ecdc ti\u1ebfng Vi\u1ec7t v\u1edbi ch\u1ee9c n\u0103ng nh\u1eadn d\u1ea1ng gi\u1ecdng n\u00f3i. \u0110\u1ec3 b\u1eaft \u0111\u1ea7u, b\u1ea1n c\u00f3 th\u1ec3 cho t\u00f4i bi\u1ebft \u1ee9ng d\u1ee5ng n\u00e0y s\u1ebd \u0111\u01b0\u1ee3c s\u1eed d\u1ee5ng ch..."
+      },
+      "timestamp": "2025-07-05T15:14:20.516074"
+    },
+    {
+      "test_name": "Workflow Graph: Import",
+      "status": "PASS",
+      "details": "Successfully imported research workflow graph",
+      "data": null,
+      "timestamp": "2025-07-05T15:14:21.030713"
+    },
+    {
+      "test_name": "Workflow Graph: Execution",
+      "status": "FAIL",
+      "details": "Workflow execution failed or returned invalid result",
+      "data": null,
+      "timestamp": "2025-07-05T15:15:46.530313"
+    },
+    {
+      "test_name": "E2E Workflow: Orchestration",
+      "status": "PASS",
+      "details": "Orchestrator successfully processed research request",
+      "data": null,
+      "timestamp": "2025-07-05T15:15:47.651986"
+    },
+    {
+      "test_name": "E2E Workflow: Complete Research",
+      "status": "PASS",
+      "details": "Complete research workflow executed successfully",
+      "data": {
+        "steps_planned": 5,
+        "steps_completed": 1,
+        "report_length": 3646
+      },
+      "timestamp": "2025-07-05T15:16:05.478564"
+    }
+  ],
+  "timestamp": "2025-07-05T15:16:05.481230"
+}
