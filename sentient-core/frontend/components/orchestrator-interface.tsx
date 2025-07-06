@@ -145,26 +145,9 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
   } = useArtifactManager();
   
   // Local UI state
-  const [input, setInput] = useState('');
-  const [inputMessage, setInputMessage] = useState('');
-  const [selectedTab, setSelectedTab] = useState('conversation');
-  const [showSettings, setShowSettings] = useState(false);
-  const [messages, setMessages] = useState<OrchestratorMessage[]>([]);
-  const [agentStates, setAgentStates] = useState<Record<string, AgentState>>({});
-  const [activeWorkflows, setActiveWorkflows] = useState<ActiveWorkflow[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [pendingConfirmations, setPendingConfirmations] = useState<PendingConfirmation[]>([]);
-  const [conversationContext, setConversationContext] = useState<ConversationContext>({
-    user_intent: '',
-    requirements_gathered: false,
-    research_needed: false,
-    planning_phase: false,
-    current_focus: 'requirements_gathering',
-    artifacts_generated: []
-  });
-  const [isWaitingForConfirmation, setIsWaitingForConfirmation] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+   const [input, setInput] = useState('');
+   const [selectedTab, setSelectedTab] = useState('conversation');
+   const [showSettings, setShowSettings] = useState(false);
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [orchestratorMode, setOrchestratorMode] = useState<'intelligent' | 'multi_agent' | 'legacy'>('intelligent');
@@ -184,6 +167,20 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
   const pendingConfirmations = orchestratorState.pendingConfirmations;
   const conversationContext = orchestratorState.conversationContext;
   const isWaitingForConfirmation = hasActiveConfirmations;
+  
+  // Additional derived states for enhanced UI
+  const hasActiveActionsLocal = orchestratorState.actionQueue.length > 0;
+  const nextActionLocal = orchestratorState.actionQueue[0] || null;
+  const isHealthyLocal = orchestratorState.executionStats.errors < 3;
+  
+  const sessionDurationLocal = React.useMemo(() => {
+    if (!orchestratorState.sessionStartTime) return '0m';
+    const duration = Date.now() - orchestratorState.sessionStartTime;
+    const minutes = Math.floor(duration / 60000);
+    const hours = Math.floor(minutes / 60);
+    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    return `${minutes}m`;
+  }, [orchestratorState.sessionStartTime]);
 
   // Initialize orchestrator connection
   const initializeOrchestrator = useCallback(async () => {
@@ -853,8 +850,8 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
             
             <div className="flex gap-2">
               <Textarea
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
                 placeholder={isWaitingForConfirmation 
                   ? "Please respond to the confirmation above first..."
                   : conversationContext.current_focus === 'requirements_gathering'
@@ -873,7 +870,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
               />
               <Button 
                 onClick={sendMessage} 
-                disabled={!inputMessage.trim() || isProcessing || isWaitingForConfirmation}
+                disabled={!input.trim() || isProcessing || isWaitingForConfirmation}
                 className="self-end"
               >
                 {isProcessing ? (
@@ -894,7 +891,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                   size="sm" 
                   variant="outline" 
                   onClick={() => {
-                    setInputMessage("That's all the requirements I have. Please proceed with the next steps.");
+                    setInput("That's all the requirements I have. Please proceed with the next steps.");
                   }}
                   className="text-xs"
                 >
@@ -904,7 +901,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                   size="sm" 
                   variant="outline" 
                   onClick={() => {
-                    setInputMessage("I need help defining my requirements. Can you guide me?");
+                    setInput("I need help defining my requirements. Can you guide me?");
                   }}
                   className="text-xs"
                 >
@@ -920,126 +917,374 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
         </Card>
       </div>
 
-      {/* Sidebar - Agent States & Workflows */}
+      {/* Sidebar - Enhanced Monitoring */}
       <div className="space-y-6">
-        {/* Active Workflows */}
-        <Card className="p-4">
-          <h3 className="font-semibold mb-3">Active Workflows</h3>
-          {activeWorkflows.length === 0 ? (
-            <p className="text-sm text-gray-500">No active workflows</p>
-          ) : (
-            <div className="space-y-3">
-              {activeWorkflows.map((workflow) => (
-                <div 
-                  key={workflow.id} 
-                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                    selectedWorkflow === workflow.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`}
-                  onClick={() => setSelectedWorkflow(workflow.id)}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">{workflow.name}</span>
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(workflow.status)}`}>
-                      {workflow.status}
-                    </span>
+        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="workflows">Workflows</TabsTrigger>
+            <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
+            <TabsTrigger value="actions">Actions</TabsTrigger>
+            <TabsTrigger value="agents">Agents</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="workflows" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Workflow className="h-5 w-5" />
+                  Active Workflows ({activeWorkflows.length})
+                </CardTitle>
+                <CardDescription>
+                  Monitor workflow progress and status
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {activeWorkflows.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Workflow className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No active workflows</p>
+                    <p className="text-sm">Workflows will appear here when started</p>
                   </div>
-                  
-                  <div className="mb-2">
-                    <div className="flex justify-between text-xs text-gray-600 mb-1">
-                      <span>{workflow.current_step}</span>
-                      <span>{Math.round(workflow.progress)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                ) : (
+                  <div className="space-y-3">
+                    {activeWorkflows.map((workflow) => (
                       <div 
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${workflow.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-1">
-                    {workflow.agents_involved.map((agentId) => (
-                      <span key={agentId} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                        {agentId.replace('_', ' ')}
-                      </span>
+                        key={workflow.id} 
+                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                          selectedWorkflow === workflow.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                        }`}
+                        onClick={() => setSelectedWorkflow(workflow.id)}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">{workflow.name}</span>
+                          <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(workflow.status)}`}>
+                            {workflow.status}
+                          </span>
+                        </div>
+                        
+                        <div className="mb-2">
+                          <div className="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>{workflow.current_step}</span>
+                            <span>{Math.round(workflow.progress)}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${workflow.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-1">
+                          {workflow.agents_involved.map((agentId) => (
+                            <span key={agentId} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                              {agentId.replace('_', ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* Agent States */}
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold">Agent States</h3>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="rounded"
-              />
-              Auto-refresh
-            </label>
-          </div>
-          
-          {Object.keys(agentStates).length === 0 ? (
-            <p className="text-sm text-gray-500">No active agents</p>
-          ) : (
-            <div className="space-y-2">
-              {Object.entries(agentStates).map(([agentId, state]) => (
-                <div key={agentId} className="p-2 bg-gray-50 rounded">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium">{agentId.replace('_', ' ')}</span>
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(state.status)}`}>
-                      {state.status}
-                    </span>
+          <TabsContent value="artifacts" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Artifacts ({artifactStats.total})
+                </CardTitle>
+                <CardDescription>
+                  Generated files, documents, and code artifacts
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Search artifacts..."
+                      value={artifactState.searchQuery}
+                      onChange={(e) => searchArtifacts(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadArtifacts()}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
                   </div>
                   
-                  {state.current_task && (
-                    <p className="text-xs text-gray-600 mb-1">{state.current_task}</p>
-                  )}
-                  
-                  {state.last_activity && (
-                    <p className="text-xs text-gray-500">
-                      {new Date(state.last_activity).toLocaleTimeString()}
-                    </p>
+                  {hasArtifacts ? (
+                    <div className="space-y-2">
+                      {filteredArtifacts.map((artifact) => (
+                        <div
+                          key={artifact.id}
+                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                            artifactState.selectedArtifact?.id === artifact.id
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'hover:bg-gray-50'
+                          }`}
+                          onClick={() => selectArtifact(artifact.id)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4" />
+                              <span className="font-medium">{artifact.name}</span>
+                              <Badge variant="outline">{artifact.type}</Badge>
+                              {artifact.isFavorite && (
+                                <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFavorite(artifact.id);
+                                }}
+                              >
+                                <Star className={`h-4 w-4 ${
+                                  artifact.isFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400'
+                                }`} />
+                              </Button>
+                              <Badge variant="secondary">
+                                {artifact.size ? `${Math.round(artifact.size / 1024)}KB` : 'N/A'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {artifact.description || 'No description'}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Created: {new Date(artifact.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No artifacts generated yet</p>
+                      <p className="text-sm">Artifacts will appear here as they are created</p>
+                    </div>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="actions" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Action Queue
+                </CardTitle>
+                <CardDescription>
+                  One-action-at-a-time execution monitoring
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={hasActiveActionsLocal ? 'default' : 'secondary'}>
+                         {hasActiveActionsLocal ? 'Active' : 'Idle'}
+                       </Badge>
+                       {nextActionLocal && (
+                         <Badge variant="outline">
+                           Next: {nextActionLocal.type}
+                         </Badge>
+                       )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">
+                        Queue: {orchestratorState.actionQueue.length}
+                      </Badge>
+                      <Badge variant={isHealthyLocal ? 'default' : 'destructive'}>
+                         {isHealthyLocal ? 'Healthy' : 'Issues'}
+                       </Badge>
+                    </div>
+                  </div>
+                  
+                  {orchestratorState.actionQueue.length > 0 ? (
+                    <div className="space-y-2">
+                      {orchestratorState.actionQueue.slice(0, 5).map((action, index) => (
+                        <div
+                          key={action.id}
+                          className={`p-3 border rounded-lg ${
+                            index === 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {index === 0 ? (
+                                <Play className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <Clock className="h-4 w-4 text-gray-400" />
+                              )}
+                              <span className="font-medium">{action.type}</span>
+                              <Badge variant={action.priority === 'high' ? 'destructive' : 'secondary'}>
+                                {action.priority}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {index === 0 ? 'Executing' : `Position ${index + 1}`}
+                            </div>
+                          </div>
+                          {action.data && (
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {typeof action.data === 'object' ? JSON.stringify(action.data).slice(0, 100) + '...' : action.data}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {orchestratorState.actionQueue.length > 5 && (
+                        <div className="text-center text-sm text-muted-foreground">
+                          ... and {orchestratorState.actionQueue.length - 5} more actions
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No actions in queue</p>
+                      <p className="text-sm">Actions will appear here as they are queued</p>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold">{orchestratorState.executionStats.totalExecuted}</div>
+                      <div className="text-sm text-muted-foreground">Total Executed</div>
+                    </div>
+                    <div className="text-center">
+                       <div className="text-2xl font-bold">{sessionDurationLocal}</div>
+                       <div className="text-sm text-muted-foreground">Session Duration</div>
+                     </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="agents" className="space-y-4">
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Agent States ({Object.keys(agentStates).length})
+                </CardTitle>
+                <CardDescription>
+                  Monitor individual agent status and activity
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={autoRefresh}
+                        onChange={(e) => setAutoRefresh(e.target.checked)}
+                        className="rounded"
+                      />
+                      Auto-refresh
+                    </label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={loadAgentStates}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  {Object.keys(agentStates).length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No active agents</p>
+                      <p className="text-sm">Agents will appear here when activated</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {Object.entries(agentStates).map(([agentId, state]) => (
+                        <div key={agentId} className="p-3 border rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <Settings className="h-4 w-4" />
+                              <span className="text-sm font-medium">{agentId.replace('_', ' ')}</span>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(state.status)}`}>
+                              {state.status}
+                            </span>
+                          </div>
+                          
+                          {state.current_task && (
+                            <div className="text-xs text-gray-600 mb-1">
+                              <strong>Task:</strong> {state.current_task}
+                            </div>
+                          )}
+                          
+                          {state.last_activity && (
+                            <div className="text-xs text-gray-500">
+                              <strong>Last Activity:</strong> {new Date(state.last_activity).toLocaleTimeString()}
+                            </div>
+                          )}
+                          
+                          {state.capabilities && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {state.capabilities.map((capability) => (
+                                <Badge key={capability} variant="outline" className="text-xs">
+                                  {capability}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Quick Actions */}
         <Card className="p-4">
           <h3 className="font-semibold mb-3">Quick Actions</h3>
           <div className="space-y-2">
             <Button 
-              onClick={() => setInputMessage('Create a new React component with TypeScript')}
+              onClick={() => setInput('Create a new React component with TypeScript')}
               size="sm" 
               className="w-full justify-start"
             >
               Create Component
             </Button>
             <Button 
-              onClick={() => setInputMessage('Build a REST API with FastAPI')}
+              onClick={() => setInput('Build a REST API with FastAPI')}
               size="sm" 
               className="w-full justify-start"
             >
               Build API
             </Button>
             <Button 
-              onClick={() => setInputMessage('Analyze the current codebase structure')}
+              onClick={() => setInput('Analyze the current codebase structure')}
               size="sm" 
               className="w-full justify-start"
             >
               Analyze Codebase
             </Button>
             <Button 
-              onClick={() => setInputMessage('Set up testing framework')}
+              onClick={() => setInput('Set up testing framework')}
               size="sm" 
               className="w-full justify-start"
             >
