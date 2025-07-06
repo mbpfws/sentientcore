@@ -177,12 +177,12 @@ async def get_conversation_history(
         state_manager = service_factory.state_manager
         session_data = await state_manager.load_session_data(session_id)
         
-        if not session_state:
+        if not session_data:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
         
         # Get conversation history with enhanced metadata
-        conversation_history = getattr(session_state, 'conversation_history', [])
-        messages = getattr(session_state, 'messages', [])
+        conversation_history = session_data.data.get('conversation_history', []) if session_data.data else []
+        messages = session_data.data.get('messages', []) if session_data.data else []
         
         # Limit results
         conversation_history = conversation_history[-limit:] if limit else conversation_history
@@ -200,14 +200,15 @@ async def get_conversation_history(
 
 @router.get("/status/{session_id}")
 async def get_session_status(
-    session_id: str
+    session_id: str,
+    service_factory: ServiceFactory = Depends(get_service_factory)
 ) -> Dict[str, Any]:
     """
     Get comprehensive session status including all builds metrics.
     """
     try:
-        session_persistence = get_session_persistence_service()
-        session_state = await session_persistence.load_session_state(session_id)
+        state_manager = service_factory.state_manager
+        session_data = await state_manager.load_session_data(session_id)
         
         if not session_state:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
