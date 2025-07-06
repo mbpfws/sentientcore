@@ -47,6 +47,8 @@ import { ResearchService } from '@/lib/api/research-service';
 import { useOrchestratorState } from '@/lib/hooks/useOrchestratorState';
 import { useConfirmationManager } from '@/lib/hooks/useConfirmationManager';
 import { useArtifactManager } from '@/lib/hooks/useArtifactManager';
+import { conversationProcessor } from '@/lib/conversation/conversationProcessor';
+import { conversationFlowManager } from '@/lib/conversation/conversationFlowManager';
 
 interface OrchestratorInterfaceProps {
   className?: string;
