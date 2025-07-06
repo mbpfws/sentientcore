@@ -1,15 +1,13 @@
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Form, File, UploadFile
+from fastapi import APIRouter, HTTPException, Form, File, UploadFile, Depends
 from fastapi.responses import FileResponse
 import time
 import os
 import glob
 import uuid
-from core.models import AppState, Message
-from core.services.session_persistence_service import get_session_persistence_service
+from app.services.service_factory import ServiceFactory, get_service_factory
 from core.config import ROOT_DIR
-from core.graphs.sentient_workflow_graph import get_sentient_workflow_app
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -71,138 +69,110 @@ async def _process_message_internal(
     research_mode: Optional[str] = None,
     task_id: Optional[str] = None,
     image_data: Optional[bytes] = None,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
+    services: ServiceFactory = Depends(get_service_factory)
 ) -> MessageResponse:
-    """Internal function to process chat messages with Build 2 session persistence"""
-    # Build 2: Handle session persistence
-    if not session_id:
-        session_id = str(uuid.uuid4())
-    
-    # Load existing session or create new app state
-    session_service = get_session_persistence_service()
-    app_state = await session_service.load_session(session_id)
-    if app_state is None:
-        app_state = AppState(session_id=session_id)
-    
-    # Add research mode prefix if specified
-    message_text = message
-    if research_mode:
-        research_prefix = {
-            "knowledge": "Please conduct a Knowledge Research",
-            "deep": "Please conduct a Deep Research",
-            "best_in_class": "Please conduct a Best-in-Class Research"
-        }.get(research_mode, "")
-        
-        if research_prefix:
-            message_text = f"{research_prefix}: {message_text}"
-    
-    # Add user message to state
-    app_state.messages.append(
-        Message(sender="user", content=message_text, image=image_data)
-    )
-    
-    # Set image if provided
-    if image_data:
-        app_state.image = image_data
-    
-    # Process through the sentient workflow graph
+    """Internal message processing function with service factory integration"""
     try:
-        workflow_app = get_sentient_workflow_app()
-        result = await workflow_app.ainvoke(app_state)
-    except Exception as workflow_error:
-        # Fallback to a helpful error message if workflow fails
-        error_response = Message(
-            sender="assistant",
-            content=f"I encountered an issue processing your request: {str(workflow_error)}. Please try again or contact support if the issue persists."
+        # Generate session ID if not provided
+        if not session_id:
+            session_id = str(uuid.uuid4())
+        
+        # Get services from factory
+        state_manager = services.get_state_manager()
+        llm_service = services.get_llm_service()
+        memory_service = services.get_memory_service()
+        sse_manager = services.get_sse_manager()
+        workflow_orchestrator = services.get_workflow_orchestrator()
+        
+        # Load or create session state
+        session_state = await state_manager.get_session(session_id)
+        if not session_state:
+            session_state = await state_manager.create_session(session_id)
+        
+        # Add user message to session
+        user_message = {
+            "content": message,
+            "sender": "user",
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "image_data": image_data
+        }
+        
+        # Update session with user message
+        await state_manager.update_session(session_id, {
+            "messages": session_state.data.get("messages", []) + [user_message],
+            "last_activity": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        })
+        
+        # Handle research mode prefix
+        if research_mode:
+            message = f"[RESEARCH_MODE:{research_mode}] {message}"
+        
+        # Store message in memory
+        await memory_service.store_memory(
+            content=message,
+            memory_type="conversation",
+            session_id=session_id,
+            metadata={"sender": "user", "workflow_mode": workflow_mode}
         )
-        app_state.messages.append(error_response)
-        result = app_state
-    
-    # Convert result to AppState model and extract assistant response
-    if isinstance(result, dict):
-        result_state = AppState(**result)
-    else:
-        result_state = result
-    
-    # Get the last assistant message from the result
-    assistant_messages = [msg for msg in result_state.messages if msg.sender == "assistant"]
-    if assistant_messages:
-        last_message = assistant_messages[-1]
-        assistant_content = last_message.content
-        message_type = "text"
-        metadata = {}
         
-        # Check for special message types in content
-        if "[CONFIRMATION_REQUIRED]" in assistant_content:
-            message_type = "confirmation"
-            # Generate confirmation ID
-            confirmation_id = str(uuid.uuid4())
-            metadata = {
-                "requires_confirmation": True,
-                "confirmation_id": confirmation_id
-            }
-            # Store pending confirmation in session
-            if not hasattr(result_state, 'pending_confirmations'):
-                result_state.pending_confirmations = []
-            
-            # Extract action details from content (simplified)
-            action_type = "general"
-            if "research" in assistant_content.lower():
-                action_type = "start_research"
-            elif "planning" in assistant_content.lower():
-                action_type = "transition_planning"
-            elif "development" in assistant_content.lower():
-                action_type = "create_workflow"
-            
-            result_state.pending_confirmations.append({
-                "confirmation_id": confirmation_id,
-                "message": assistant_content.replace("[CONFIRMATION_REQUIRED]", "").strip(),
-                "action_type": action_type,
-                "action_data": {},
-                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-            })
-            
-            # Clean the content for display
-            assistant_content = assistant_content.replace("[CONFIRMATION_REQUIRED]", "").strip()
+        # Process message through LLM service
+        response_content = await llm_service.chat_completion(
+            messages=[
+                {"role": "user", "content": message}
+            ],
+            session_id=session_id
+        )
         
-        elif "[ARTIFACT]" in assistant_content:
-            message_type = "artifact"
-            # Extract artifact information
-            if "research_report" in assistant_content.lower():
-                metadata = {
-                    "artifact_type": "research_report",
-                    "download_url": "/chat/download/research/latest_research_report.md"
-                }
-            elif "plan" in assistant_content.lower():
-                metadata = {
-                    "artifact_type": "plan",
-                    "download_url": "/chat/download/research/latest_plan.md"
-                }
-            
-            # Clean the content for display
-            assistant_content = assistant_content.replace("[ARTIFACT]", "").strip()
+        # Create assistant message
+        assistant_message = {
+            "content": response_content,
+            "sender": "assistant",
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        }
         
+        # Update session with assistant message
+        current_messages = session_state.data.get("messages", []) + [user_message]
+        await state_manager.update_session(session_id, {
+            "messages": current_messages + [assistant_message],
+            "last_activity": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        })
+        
+        # Store assistant response in memory
+        await memory_service.store_memory(
+            content=response_content,
+            memory_type="conversation",
+            session_id=session_id,
+            metadata={"sender": "assistant", "workflow_mode": workflow_mode}
+        )
+        
+        # Send SSE event for real-time updates
+        await sse_manager.send_chat_message(
+            session_id=session_id,
+            message=response_content,
+            sender="assistant"
+        )
+        
+        # Create response message
         response_message = MessageResponse(
             id=f"msg_{int(time.time() * 1000)}",
-            content=assistant_content,
+            content=response_content,
             sender="assistant",
             created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            session_id=session_id,
-            message_type=message_type,
-            metadata=metadata if metadata else None
+            session_id=session_id
         )
         
-        # Save updated session with pending confirmations
-        if session_id:
-            await session_service.save_session(session_id, result_state)
-    else:
-        # Fallback response if no assistant message found
+        return response_message
+        
+    except Exception as e:
+        print(f"Error in _process_message_internal: {e}")
+        # Create error response
         response_message = MessageResponse(
             id=f"msg_{int(time.time() * 1000)}",
             content="I received your message but couldn't generate a response. Please try again.",
             sender="assistant",
             created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            session_id=session_id  # Build 2: Include session ID
+            session_id=session_id
         )
     
     return response_message
@@ -214,7 +184,8 @@ async def process_chat_message(
     research_mode: Optional[str] = Form(None),
     task_id: Optional[str] = Form(None),
     image_data: Optional[UploadFile] = File(None),
-    session_id: Optional[str] = Form(None)  # Build 2: Session persistence
+    session_id: Optional[str] = Form(None),
+    services: ServiceFactory = Depends(get_service_factory)
 ):
     """Process a chat message with optional image attachment"""
     try:
@@ -229,7 +200,8 @@ async def process_chat_message(
             research_mode=research_mode,
             task_id=task_id,
             image_data=image_bytes,
-            session_id=session_id  # Build 2: Pass session ID
+            session_id=session_id,
+            services=services
         )
         
         return ApiResponse(data=response_message)
@@ -238,7 +210,10 @@ async def process_chat_message(
         raise HTTPException(status_code=500, detail=f"Error processing chat message: {str(e)}")
 
 @router.post("/message/json")
-async def process_chat_message_json(chat_request: ChatRequest):
+async def process_chat_message_json(
+    chat_request: ChatRequest,
+    services: ServiceFactory = Depends(get_service_factory)
+):
     """Process a chat message using JSON (backward compatibility)"""
     try:
         response_message = await _process_message_internal(
@@ -247,7 +222,8 @@ async def process_chat_message_json(chat_request: ChatRequest):
             research_mode=chat_request.research_mode,
             task_id=getattr(chat_request, 'task_id', None),
             image_data=chat_request.image_data,
-            session_id=chat_request.session_id  # Build 2: Pass session ID
+            session_id=chat_request.session_id,
+            services=services
         )
         
         return ApiResponse(data=response_message)
@@ -265,25 +241,27 @@ class ChatHistory(BaseModel):
 async def get_chat_history(
     workflow_mode: Optional[str] = None, 
     task_id: Optional[str] = None,
-    session_id: Optional[str] = None  # Build 2: Session-based history
+    session_id: Optional[str] = None,
+    services: ServiceFactory = Depends(get_service_factory)
 ):
-    """Get the chat history for Build 2 with session persistence"""
+    """Get the chat history using service factory"""
     try:
         messages = []
         
-        # Build 2: Load session history if session_id provided
+        # Load session history if session_id provided
         if session_id:
             try:
-                session_service = get_session_persistence_service()
-                app_state = await session_service.load_session(session_id)
-                # Convert AppState messages to MessageResponse format
-                if app_state:
-                    for msg in app_state.messages:
+                state_manager = services.get_state_manager()
+                session_state = await state_manager.get_session(session_id)
+                
+                # Convert session messages to MessageResponse format
+                if session_state and "messages" in session_state.data:
+                    for i, msg in enumerate(session_state.data["messages"]):
                         messages.append(MessageResponse(
-                            id=f"msg_{int(time.time() * 1000)}_{len(messages)}",
-                            content=msg.content,
-                            sender=msg.sender,
-                            created_at=getattr(msg, 'created_at', None).strftime("%Y-%m-%dT%H:%M:%SZ") if getattr(msg, 'created_at', None) else time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                            id=f"msg_{int(time.time() * 1000)}_{i}",
+                            content=msg.get("content", ""),
+                            sender=msg.get("sender", "unknown"),
+                            created_at=msg.get("created_at", time.strftime("%Y-%m-%dT%H:%M:%SZ")),
                             session_id=session_id
                         ))
             except Exception as e:
@@ -370,16 +348,13 @@ async def list_research_artifacts():
 
 # Build 2: Session management endpoints
 @router.get("/sessions")
-async def list_sessions():
+async def list_sessions(services: ServiceFactory = Depends(get_service_factory)):
     """List all available sessions with metadata"""
     try:
-        from core.services.session_persistence_service import SessionPersistenceService
-        
-        # Initialize session persistence service
-        session_service = SessionPersistenceService()
+        state_manager = services.get_state_manager()
         
         # Get all sessions
-        sessions = await session_service.list_sessions()
+        sessions = await state_manager.list_sessions()
         
         return ApiResponse(data={
             "sessions": sessions,
@@ -389,21 +364,52 @@ async def list_sessions():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing sessions: {str(e)}")
 
+@router.get("/sessions/{session_id}")
+async def get_session(
+    session_id: str,
+    services: ServiceFactory = Depends(get_service_factory)
+):
+    """Get detailed information about a specific session"""
+    try:
+        # Validate session ID format
+        if not session_id or len(session_id) < 8:
+            raise HTTPException(status_code=400, detail="Invalid session ID format")
+        
+        state_manager = services.get_state_manager()
+        
+        # Get session details
+        session_data = await state_manager.get_session(session_id)
+        
+        if not session_data:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return ApiResponse(data={
+            "session_id": session_data.session_id,
+            "created_at": session_data.created_at.isoformat(),
+            "updated_at": session_data.updated_at.isoformat(),
+            "data": session_data.data
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving session: {str(e)}")
+
 @router.delete("/sessions/{session_id}")
-async def delete_session(session_id: str):
+async def delete_session(
+    session_id: str,
+    services: ServiceFactory = Depends(get_service_factory)
+):
     """Delete a specific session and its data"""
     try:
-        from core.services.session_persistence_service import SessionPersistenceService
-        
         # Security check: ensure session_id doesn't contain path traversal
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise HTTPException(status_code=400, detail="Invalid session ID")
         
-        # Initialize session persistence service
-        session_service = SessionPersistenceService()
+        state_manager = services.get_state_manager()
         
         # Delete the session
-        success = await session_service.delete_session(session_id)
+        success = await state_manager.delete_session(session_id)
         
         if success:
             return ApiResponse(data={"message": f"Session {session_id} deleted successfully"})
@@ -416,22 +422,32 @@ async def delete_session(session_id: str):
         raise HTTPException(status_code=500, detail=f"Error deleting session: {str(e)}")
 
 @router.get("/sessions/{session_id}/stats")
-async def get_session_stats(session_id: str):
+async def get_session_stats(
+    session_id: str,
+    services: ServiceFactory = Depends(get_service_factory)
+):
     """Get statistics for a specific session"""
     try:
-        from core.services.session_persistence_service import SessionPersistenceService
-        
         # Security check: ensure session_id doesn't contain path traversal
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise HTTPException(status_code=400, detail="Invalid session ID")
         
-        # Initialize session persistence service
-        session_service = SessionPersistenceService()
+        state_manager = services.get_state_manager()
         
-        # Get session statistics
-        stats = await session_service.get_session_stats(session_id)
+        # Get session data
+        session_data = await state_manager.get_session(session_id)
         
-        if stats:
+        if session_data:
+            # Calculate basic statistics from session data
+            messages = session_data.data.get("messages", [])
+            stats = {
+                "session_id": session_id,
+                "message_count": len(messages),
+                "created_at": session_data.created_at.isoformat(),
+                "updated_at": session_data.updated_at.isoformat(),
+                "user_messages": len([m for m in messages if m.get("sender") == "user"]),
+                "assistant_messages": len([m for m in messages if m.get("sender") == "assistant"])
+            }
             return ApiResponse(data=stats)
         else:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
@@ -443,25 +459,32 @@ async def get_session_stats(session_id: str):
 
 # Enhanced conversation context and confirmation endpoints
 @router.post("/confirmation")
-async def handle_confirmation(confirmation_request: ConfirmationRequest):
+async def handle_confirmation(
+    confirmation_request: ConfirmationRequest,
+    services: ServiceFactory = Depends(get_service_factory)
+):
     """Handle user confirmation responses"""
     try:
         session_id = confirmation_request.session_id
         confirmation_id = confirmation_request.confirmation_id
         confirmed = confirmation_request.confirmed
         
+        state_manager = services.get_state_manager()
+        
         # Load session to get pending confirmations
+        session_data = None
         if session_id:
-            session_service = get_session_persistence_service()
-            app_state = await session_service.load_session(session_id)
-            if app_state is None:
-                app_state = AppState(session_id=session_id)
+            session_data = await state_manager.get_session(session_id)
+        
+        if not session_data:
+            session_data_dict = {"pending_confirmations": []}
         else:
-            app_state = AppState()
+            session_data_dict = session_data.data
         
         # Find the pending confirmation
         pending_confirmation = None
-        for conf in getattr(app_state, 'pending_confirmations', []):
+        pending_confirmations = session_data_dict.get('pending_confirmations', [])
+        for conf in pending_confirmations:
             if conf.get('confirmation_id') == confirmation_id:
                 pending_confirmation = conf
                 break
@@ -499,16 +522,14 @@ async def handle_confirmation(confirmation_request: ConfirmationRequest):
             response_data["message"] = "Action cancelled by user."
         
         # Remove the confirmation from pending list
-        if hasattr(app_state, 'pending_confirmations'):
-            app_state.pending_confirmations = [
-                conf for conf in app_state.pending_confirmations 
-                if conf.get('confirmation_id') != confirmation_id
-            ]
+        session_data_dict['pending_confirmations'] = [
+            conf for conf in pending_confirmations 
+            if conf.get('confirmation_id') != confirmation_id
+        ]
         
         # Save updated session
         if session_id:
-            session_service = get_session_persistence_service()
-            await session_service.save_session(session_id, app_state)
+            await state_manager.update_session(session_id, session_data_dict)
         
         return ApiResponse(data=response_data)
         
@@ -518,28 +539,33 @@ async def handle_confirmation(confirmation_request: ConfirmationRequest):
         raise HTTPException(status_code=500, detail=f"Error handling confirmation: {str(e)}")
 
 @router.get("/sessions/{session_id}/context")
-async def get_conversation_context(session_id: str):
+async def get_conversation_context(
+    session_id: str,
+    services: ServiceFactory = Depends(get_service_factory)
+):
     """Get conversation context for a session"""
     try:
         # Security check
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise HTTPException(status_code=400, detail="Invalid session ID")
         
+        state_manager = services.get_state_manager()
+        
         # Load session
-        session_service = get_session_persistence_service()
-        app_state = await session_service.load_session(session_id)
-        if app_state is None:
-            app_state = AppState(session_id=session_id)
+        session_data = await state_manager.get_session(session_id)
         
         # Get conversation context from session or create default
-        context = getattr(app_state, 'conversation_context', {
-            "current_focus": "general_inquiry",
-            "user_intent": "unknown",
-            "requirements_gathered": False,
-            "research_needed": False,
-            "project_type": None,
-            "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        })
+        if session_data and "conversation_context" in session_data.data:
+            context = session_data.data["conversation_context"]
+        else:
+            context = {
+                "current_focus": "general_inquiry",
+                "user_intent": "unknown",
+                "requirements_gathered": False,
+                "research_needed": False,
+                "project_type": None,
+                "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            }
         
         return ApiResponse(data=context)
         
@@ -549,26 +575,33 @@ async def get_conversation_context(session_id: str):
         raise HTTPException(status_code=500, detail=f"Error getting conversation context: {str(e)}")
 
 @router.put("/sessions/{session_id}/context")
-async def update_conversation_context(session_id: str, context_update: ContextUpdateRequest):
+async def update_conversation_context(
+    session_id: str, 
+    context_update: ContextUpdateRequest,
+    services: ServiceFactory = Depends(get_service_factory)
+):
     """Update conversation context for a session"""
     try:
         # Security check
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise HTTPException(status_code=400, detail="Invalid session ID")
         
+        state_manager = services.get_state_manager()
+        
         # Load session
-        session_service = get_session_persistence_service()
-        app_state = await session_service.load_session(session_id)
-        if app_state is None:
-            app_state = AppState(session_id=session_id)
+        session_data = await state_manager.get_session(session_id)
+        if not session_data:
+            session_data_dict = {}
+        else:
+            session_data_dict = session_data.data
         
         # Update conversation context
         context_dict = context_update.context.dict()
         context_dict["last_updated"] = time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        app_state.conversation_context = context_dict
+        session_data_dict["conversation_context"] = context_dict
         
         # Save updated session
-        await session_service.save_session(session_id, app_state)
+        await state_manager.update_session(session_id, session_data_dict)
         
         return ApiResponse(data={
             "message": "Conversation context updated successfully",
@@ -581,21 +614,26 @@ async def update_conversation_context(session_id: str, context_update: ContextUp
         raise HTTPException(status_code=500, detail=f"Error updating conversation context: {str(e)}")
 
 @router.get("/sessions/{session_id}/confirmations")
-async def get_pending_confirmations(session_id: str):
+async def get_pending_confirmations(
+    session_id: str,
+    services: ServiceFactory = Depends(get_service_factory)
+):
     """Get pending confirmations for a session"""
     try:
         # Security check
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise HTTPException(status_code=400, detail="Invalid session ID")
         
+        state_manager = services.get_state_manager()
+        
         # Load session
-        session_service = get_session_persistence_service()
-        app_state = await session_service.load_session(session_id)
-        if app_state is None:
-            app_state = AppState(session_id=session_id)
+        session_data = await state_manager.get_session(session_id)
         
         # Get pending confirmations
-        confirmations = getattr(app_state, 'pending_confirmations', [])
+        if session_data and "pending_confirmations" in session_data.data:
+            confirmations = session_data.data["pending_confirmations"]
+        else:
+            confirmations = []
         
         return ApiResponse(data={
             "confirmations": confirmations,

@@ -1,13 +1,11 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import json
 import os
 from pathlib import Path
 
-from core.models import AppState, LogEntry
-from core.services.session_persistence_service import get_session_persistence_service
-from core.services.memory_service import get_memory_service
+from app.services.service_factory import ServiceFactory, get_service_factory
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
@@ -15,24 +13,25 @@ router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 async def get_session_logs(
     session_id: str,
     limit: Optional[int] = Query(100, description="Maximum number of logs to return"),
-    level: Optional[str] = Query(None, description="Filter by log level (INFO, WARNING, ERROR)")
+    level: Optional[str] = Query(None, description="Filter by log level (INFO, WARNING, ERROR)"),
+    service_factory: ServiceFactory = Depends(get_service_factory)
 ) -> Dict[str, Any]:
     """
     Get logs for a specific session with optional filtering.
     Supports all three builds with enhanced log display.
     """
     try:
-        session_persistence = get_session_persistence_service()
-        session_state = await session_persistence.load_session_state(session_id)
+        state_manager = service_factory.state_manager
+        session_data = await state_manager.load_session_data(session_id)
         
-        if not session_state:
+        if not session_data:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
         
-        logs = session_state.logs if hasattr(session_state, 'logs') else []
+        logs = session_data.data.get('logs', []) if session_data.data else []
         
         # Filter by level if specified
         if level:
-            logs = [log for log in logs if getattr(log, 'level', 'INFO') == level.upper()]
+            logs = [log for log in logs if log.get('level', 'INFO') == level.upper()]
         
         # Limit results
         logs = logs[-limit:] if limit else logs
@@ -40,18 +39,27 @@ async def get_session_logs(
         # Convert logs to dict format for JSON serialization
         log_data = []
         for log in logs:
-            log_dict = {
-                "timestamp": getattr(log, 'timestamp', datetime.now().isoformat()),
-                "level": getattr(log, 'level', 'INFO'),
-                "source": getattr(log, 'source', 'Unknown'),
-                "message": getattr(log, 'message', str(log)),
-                "activity_type": getattr(log, 'activity_type', None)
-            }
+            if isinstance(log, dict):
+                log_dict = {
+                    "timestamp": log.get('timestamp', datetime.now().isoformat()),
+                    "level": log.get('level', 'INFO'),
+                    "source": log.get('source', 'Unknown'),
+                    "message": log.get('message', str(log)),
+                    "activity_type": log.get('activity_type', None)
+                }
+            else:
+                log_dict = {
+                    "timestamp": getattr(log, 'timestamp', datetime.now().isoformat()),
+                    "level": getattr(log, 'level', 'INFO'),
+                    "source": getattr(log, 'source', 'Unknown'),
+                    "message": getattr(log, 'message', str(log)),
+                    "activity_type": getattr(log, 'activity_type', None)
+                }
             log_data.append(log_dict)
         
         return {
             "session_id": session_id,
-            "total_logs": len(session_state.logs) if hasattr(session_state, 'logs') else 0,
+            "total_logs": len(session_data.data.get('logs', [])) if session_data.data else 0,
             "filtered_logs": len(log_data),
             "logs": log_data
         }
@@ -61,14 +69,15 @@ async def get_session_logs(
 
 @router.get("/artifacts/{session_id}")
 async def get_session_artifacts(
-    session_id: str
+    session_id: str,
+    service_factory: ServiceFactory = Depends(get_service_factory)
 ) -> Dict[str, Any]:
     """
     Get research and planning artifacts for a specific session.
     Supports Build 2 (research) and Build 3 (planning) artifacts.
     """
     try:
-        memory_service = get_memory_service()
+        memory_service = service_factory.memory_service
         artifacts = {
             "research_artifacts": [],
             "planning_artifacts": [],
@@ -157,15 +166,16 @@ async def download_artifact(
 @router.get("/conversation/{session_id}")
 async def get_conversation_history(
     session_id: str,
-    limit: Optional[int] = Query(50, description="Maximum number of messages to return")
+    limit: Optional[int] = Query(50, description="Maximum number of messages to return"),
+    service_factory: ServiceFactory = Depends(get_service_factory)
 ) -> Dict[str, Any]:
     """
     Get enhanced conversation history for a session.
     Supports Build 1 conversation persistence with artifacts metadata.
     """
     try:
-        session_persistence = get_session_persistence_service()
-        session_state = await session_persistence.load_session_state(session_id)
+        state_manager = service_factory.state_manager
+        session_data = await state_manager.load_session_data(session_id)
         
         if not session_state:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")

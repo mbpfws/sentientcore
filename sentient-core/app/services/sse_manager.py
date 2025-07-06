@@ -94,7 +94,7 @@ class SSEConnectionManager:
         
         # Connected clients
         self._clients: Dict[str, SSEClient] = {}
-        self._clients_lock = asyncio.Lock()
+        self._clients_lock = None  # Will be created when needed
         
         # Event broadcasting
         self._event_history: List[SSEEvent] = []
@@ -103,6 +103,7 @@ class SSEConnectionManager:
         # Background tasks
         self._heartbeat_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
+        self._initialized = False
         
         # Statistics
         self._stats = {
@@ -113,17 +114,33 @@ class SSEConnectionManager:
         }
         
         self.logger = logging.getLogger(__name__)
-        
-        # Start background tasks
-        self._start_background_tasks()
+    
+    async def _ensure_initialized(self):
+        """Ensure the SSE manager is properly initialized"""
+        if not self._initialized:
+            try:
+                # Create async lock if not exists
+                if self._clients_lock is None:
+                    self._clients_lock = asyncio.Lock()
+                
+                # Start background tasks
+                self._start_background_tasks()
+                self._initialized = True
+            except RuntimeError:
+                # No event loop running, will initialize later
+                pass
     
     def _start_background_tasks(self):
         """Start background maintenance tasks"""
-        if not self._heartbeat_task or self._heartbeat_task.done():
-            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-        
-        if not self._cleanup_task or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+        try:
+            if not self._heartbeat_task or self._heartbeat_task.done():
+                self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+            
+            if not self._cleanup_task or self._cleanup_task.done():
+                self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+        except RuntimeError:
+            # No event loop running, tasks will be started later
+            pass
     
     async def connect_client(
         self,
@@ -133,6 +150,8 @@ class SSEConnectionManager:
         metadata: Optional[Dict[str, Any]] = None
     ) -> StreamingResponse:
         """Connect a new SSE client"""
+        await self._ensure_initialized()
+        
         client_id = str(uuid.uuid4())
         now = datetime.now()
         
@@ -187,6 +206,8 @@ class SSEConnectionManager:
     
     async def disconnect_client(self, client_id: str):
         """Disconnect a client"""
+        await self._ensure_initialized()
+        
         async with self._clients_lock:
             client = self._clients.pop(client_id, None)
             if client:
@@ -201,6 +222,8 @@ class SSEConnectionManager:
         target_clients: Optional[Set[str]] = None
     ) -> int:
         """Broadcast an event to interested clients"""
+        await self._ensure_initialized()
+        
         event = SSEEvent(
             id=str(uuid.uuid4()),
             event_type=event_type,
@@ -314,6 +337,10 @@ class SSEConnectionManager:
             try:
                 await asyncio.sleep(self.heartbeat_interval)
                 
+                # Skip if not initialized yet
+                if not self._initialized or self._clients_lock is None:
+                    continue
+                
                 now = datetime.now()
                 timeout_threshold = now.timestamp() - (self.heartbeat_interval * 3)
                 
@@ -377,11 +404,12 @@ class SSEConnectionManager:
         if self._cleanup_task:
             self._cleanup_task.cancel()
         
-        # Disconnect all clients
-        async with self._clients_lock:
-            client_ids = list(self._clients.keys())
-            for client_id in client_ids:
-                await self.disconnect_client(client_id)
+        # Disconnect all clients if initialized
+        if self._initialized and self._clients_lock is not None:
+            async with self._clients_lock:
+                client_ids = list(self._clients.keys())
+                for client_id in client_ids:
+                    await self.disconnect_client(client_id)
         
         self.logger.info("SSE Connection Manager shutdown complete")
 
