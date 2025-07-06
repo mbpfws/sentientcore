@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from core.models import AppState, Message, LogEntry, ActivityType
+from core.models import AppState, Message, LogEntry
 from core.agents.ultra_orchestrator import UltraOrchestrator
 from core.services.enhanced_llm_service import EnhancedLLMService
 from core.services.session_persistence_service import SessionPersistenceService

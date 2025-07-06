@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from core.models.app_state import AppState, LogEntry
+from core.models import AppState, LogEntry
 from core.services.session_persistence_service import get_session_persistence_service
 from core.services.memory_service import get_memory_service
 
