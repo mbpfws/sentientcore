@@ -417,28 +417,95 @@ class SuccessResponse(BaseModel):
             }
         }
 
-# WebSocket Message Models
-class WebSocketMessage(BaseModel):
-    """Base model for WebSocket messages"""
-    type: str
+# SSE Event Models
+class SSEEvent(BaseModel):
+    """Base model for SSE events"""
+    event: str  # Event type for SSE
+    data: Dict[str, Any]  # Event data payload
+    id: Optional[str] = None  # Event ID for client tracking
+    retry: Optional[int] = None  # Retry interval in milliseconds
     timestamp: datetime = Field(default_factory=datetime.now)
-    data: Optional[Dict[str, Any]] = None
 
-class WorkflowUpdateMessage(WebSocketMessage):
-    """WebSocket message for workflow updates"""
+class WorkflowUpdateEvent(SSEEvent):
+    """SSE event for workflow updates"""
+    event: str = "workflow_update"
     workflow_id: str
     update_type: str  # created, started, paused, resumed, completed, error
     
-class StepUpdateMessage(WebSocketMessage):
-    """WebSocket message for step updates"""
+    def __init__(self, workflow_id: str, update_type: str, **data):
+        super().__init__(
+            event="workflow_update",
+            data={
+                "workflow_id": workflow_id,
+                "update_type": update_type,
+                **data
+            }
+        )
+        self.workflow_id = workflow_id
+        self.update_type = update_type
+    
+class StepUpdateEvent(SSEEvent):
+    """SSE event for step updates"""
+    event: str = "step_update"
     workflow_id: str
     step_id: str
     update_type: str  # started, completed, failed, approval_requested
     
-class ApprovalUpdateMessage(WebSocketMessage):
-    """WebSocket message for approval updates"""
+    def __init__(self, workflow_id: str, step_id: str, update_type: str, **data):
+        super().__init__(
+            event="step_update",
+            data={
+                "workflow_id": workflow_id,
+                "step_id": step_id,
+                "update_type": update_type,
+                **data
+            }
+        )
+        self.workflow_id = workflow_id
+        self.step_id = step_id
+        self.update_type = update_type
+    
+class ApprovalUpdateEvent(SSEEvent):
+    """SSE event for approval updates"""
+    event: str = "approval_update"
     workflow_id: str
     step_id: str
     approval_id: str
     update_type: str  # requested, submitted, approved, rejected
     requires_action: bool = False
+    
+    def __init__(self, workflow_id: str, step_id: str, approval_id: str, update_type: str, requires_action: bool = False, **data):
+        super().__init__(
+            event="approval_update",
+            data={
+                "workflow_id": workflow_id,
+                "step_id": step_id,
+                "approval_id": approval_id,
+                "update_type": update_type,
+                "requires_action": requires_action,
+                **data
+            }
+        )
+        self.workflow_id = workflow_id
+        self.step_id = step_id
+        self.approval_id = approval_id
+        self.update_type = update_type
+        self.requires_action = requires_action
+
+class ResearchUpdateEvent(SSEEvent):
+    """SSE event for research updates"""
+    event: str = "research_update"
+    research_id: str
+    update_type: str  # progress, completed, error
+    
+    def __init__(self, research_id: str, update_type: str, **data):
+        super().__init__(
+            event="research_update",
+            data={
+                "research_id": research_id,
+                "update_type": update_type,
+                **data
+            }
+        )
+        self.research_id = research_id
+        self.update_type = update_type

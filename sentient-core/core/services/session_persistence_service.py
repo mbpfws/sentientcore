@@ -66,6 +66,7 @@ class SessionPersistenceService:
                     sender TEXT,
                     content TEXT,
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP,
                     image_data BLOB,
                     FOREIGN KEY (session_id) REFERENCES sessions (session_id)
                 )
@@ -87,6 +88,14 @@ class SessionPersistenceService:
             try:
                 conn.execute("ALTER TABLE sessions ADD COLUMN conversation_history TEXT")
                 print("Added conversation_history column to existing sessions table")
+            except sqlite3.OperationalError:
+                # Column already exists, which is fine
+                pass
+            
+            # Add created_at column to conversation_history if it doesn't exist
+            try:
+                conn.execute("ALTER TABLE conversation_history ADD COLUMN created_at TIMESTAMP")
+                print("Added created_at column to existing conversation_history table")
             except sqlite3.OperationalError:
                 # Column already exists, which is fine
                 pass
@@ -131,13 +140,14 @@ class SessionPersistenceService:
                 for idx, message in enumerate(state.messages):
                     conn.execute("""
                         INSERT INTO conversation_history 
-                        (session_id, message_index, sender, content, image_data)
-                        VALUES (?, ?, ?, ?, ?)
+                        (session_id, message_index, sender, content, created_at, image_data)
+                        VALUES (?, ?, ?, ?, ?, ?)
                     """, (
                         session_id,
                         idx,
                         message.sender,
                         message.content,
+                        message.created_at,
                         message.image
                     ))
                 
@@ -195,7 +205,7 @@ class SessionPersistenceService:
                 
                 # Load conversation history
                 message_rows = conn.execute("""
-                    SELECT sender, content, image_data 
+                    SELECT sender, content, created_at, image_data 
                     FROM conversation_history 
                     WHERE session_id = ? 
                     ORDER BY message_index
@@ -205,7 +215,8 @@ class SessionPersistenceService:
                     Message(
                         sender=row[0],
                         content=row[1],
-                        image=row[2] if row[2] else None
+                        created_at=datetime.fromisoformat(row[2]) if row[2] else datetime.now(),
+                        image=row[3] if row[3] else None
                     )
                     for row in message_rows
                 ]

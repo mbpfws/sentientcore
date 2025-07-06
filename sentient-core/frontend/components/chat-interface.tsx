@@ -15,8 +15,8 @@ import { Paperclip, X, Image as ImageIcon, History, Settings, FileText, Zap, Sea
 import { ResearchResults } from './research-results';
 import { VerboseFeedback } from './verbose-feedback';
 import { researchService } from '@/lib/api/research-service';
-import ImplementationWorkflow from './implementation/implementation-workflow';
-import ImplementationProgress from './implementation/implementation-progress';
+import { ImplementationWorkflow } from './implementation/implementation-workflow';
+import { ImplementationProgress } from './implementation/implementation-progress';
 
 // Extended from API Message type with UI-specific fields
 interface Message {

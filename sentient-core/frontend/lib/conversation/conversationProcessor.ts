@@ -1,6 +1,6 @@
 import { ConversationContext, OrchestratorMessage } from '../hooks/useOrchestratorState';
 import { conversationFlowManager, ConversationAnalysis } from './conversationFlowManager';
-import { coreServicesClient } from '../services/coreServicesClient';
+import { coreServicesClient } from '../api/core-services';
 
 export interface ProcessedResponse {
   content: string;

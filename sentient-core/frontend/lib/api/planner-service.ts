@@ -72,7 +72,7 @@ export interface PlannerSession {
 
 class PlannerService {
   private baseUrl = '/api/planner';
-  private wsConnection: WebSocket | null = null;
+  private sseConnection: EventSource | null = null;
   private listeners: Map<string, (data: any) => void> = new Map();
 
   // Start a new planning session
@@ -213,59 +213,60 @@ class PlannerService {
     }
   }
 
-  // Subscribe to real-time updates via WebSocket
+  // Subscribe to real-time updates via SSE
   subscribeToUpdates(resultId: string, callback?: (data: PlannerResult) => void) {
     if (typeof window === 'undefined') return;
 
     try {
-      // Use relative WebSocket URL that works with any host
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/ws/planner/${resultId}`;
-      this.wsConnection = new WebSocket(wsUrl);
+      // Close existing connection if any
+      if (this.sseConnection) {
+        this.sseConnection.close();
+      }
 
-      this.wsConnection.onopen = () => {
-        console.log('Planner WebSocket connected');
+      // Create SSE connection
+      const sseUrl = `/api/sse/planner/${resultId}`;
+      this.sseConnection = new EventSource(sseUrl);
+
+      this.sseConnection.onopen = () => {
+        console.log('Planner SSE connected');
       };
 
-      this.wsConnection.onmessage = (event) => {
+      // Listen for planner_update events
+      this.sseConnection.addEventListener('planner_update', (event) => {
         try {
           const data = JSON.parse(event.data);
           
           // Update localStorage
-          if (data.type === 'planner_update' && data.result) {
-            this.updateLocalStorage(data.result);
+          if (data) {
+            this.updateLocalStorage(data);
             
             // Call callback if provided
             if (callback) {
-              callback(data.result);
+              callback(data);
             }
             
             // Notify all listeners
             this.listeners.forEach((listener) => {
-              listener(data.result);
+              listener(data);
             });
           }
         } catch (error) {
-          console.error('WebSocket message parse error:', error);
+          console.error('SSE message parse error:', error);
         }
-      };
+      });
 
-      this.wsConnection.onerror = (error) => {
-        console.error('Planner WebSocket error:', error);
-      };
-
-      this.wsConnection.onclose = () => {
-        console.log('Planner WebSocket disconnected');
+      this.sseConnection.onerror = (error) => {
+        console.error('Planner SSE error:', error);
+        
         // Attempt to reconnect after 5 seconds
         setTimeout(() => {
-          if (this.wsConnection?.readyState === WebSocket.CLOSED) {
+          if (this.sseConnection?.readyState === EventSource.CLOSED) {
             this.subscribeToUpdates(resultId, callback);
           }
         }, 5000);
       };
     } catch (error) {
-      console.error('WebSocket connection error:', error);
+      console.error('SSE connection error:', error);
     }
   }
 
@@ -279,11 +280,11 @@ class PlannerService {
     this.listeners.delete(id);
   }
 
-  // Disconnect WebSocket
+  // Disconnect SSE
   disconnect() {
-    if (this.wsConnection) {
-      this.wsConnection.close();
-      this.wsConnection = null;
+    if (this.sseConnection) {
+      this.sseConnection.close();
+      this.sseConnection = null;
     }
     this.listeners.clear();
   }

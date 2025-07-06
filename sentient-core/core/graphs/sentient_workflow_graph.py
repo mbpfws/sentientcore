@@ -130,7 +130,7 @@ async def save_session(state: AppState) -> None:
                     state.conversation_history.append({
                         "role": msg.sender,
                         "content": msg.content,
-                        "timestamp": msg.created_at or time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                        "timestamp": getattr(msg, 'created_at', None) or time.strftime("%Y-%m-%dT%H:%M:%SZ")
                     })
         
         await session_persistence.save_session(state.session_id, state)
@@ -170,7 +170,7 @@ async def load_session_if_exists(session_id: str) -> AppState:
                     existing_state.conversation_history.append({
                         "role": msg.sender,
                         "content": msg.content,
-                        "timestamp": msg.created_at or time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                        "timestamp": getattr(msg, 'created_at', None) or time.strftime("%Y-%m-%dT%H:%M:%SZ")
                     })
             
             existing_state.logs.append(LogEntry(
@@ -234,7 +234,7 @@ async def ultra_orchestrator_node(state: AppState) -> AppState:
                 state.conversation_history.append({
                     "role": "user",
                     "content": latest_message.content,
-                    "timestamp": latest_message.created_at or time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    "timestamp": getattr(latest_message, 'created_at', None) or time.strftime("%Y-%m-%dT%H:%M:%SZ")
                 })
         
         # Process the message through the orchestrator with enhanced state
@@ -252,7 +252,7 @@ async def ultra_orchestrator_node(state: AppState) -> AppState:
                 result_state.conversation_history.append({
                     "role": "assistant",
                     "content": latest_assistant_message.content,
-                    "timestamp": latest_assistant_message.created_at or time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    "timestamp": getattr(latest_assistant_message, 'created_at', None) or time.strftime("%Y-%m-%dT%H:%M:%SZ")
                 })
         
         # Build 1: Enhanced session persistence with conversation history

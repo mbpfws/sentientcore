@@ -49,7 +49,7 @@ class ArchitectPlannerAgent(BaseAgent):
         Processes an architecture and planning task.
         """
         try:
-            self.log_activity(ActivityType.TASK_STARTED, f"Processing planning task: {task.description}")
+            await self.log_activity(ActivityType.TASK_START, f"Processing planning task: {task.description}")
             
             # Determine the type of planning task
             task_type = self._determine_task_type(task.description)
@@ -71,7 +71,7 @@ class ArchitectPlannerAgent(BaseAgent):
             else:
                 result = await self._handle_general_planning_task(task)
             
-            self.log_activity(ActivityType.TASK_COMPLETED, f"Planning task completed: {task.description}")
+            await self.log_activity(ActivityType.TASK_COMPLETE, f"Planning task completed: {task.description}")
             
             return {
                 "status": "completed",
@@ -80,7 +80,7 @@ class ArchitectPlannerAgent(BaseAgent):
             }
             
         except Exception as e:
-            self.handle_error(e, f"Error processing planning task: {task.description}")
+            await self.handle_error(e, f"Error processing planning task: {task.description}")
             return {
                 "status": "error",
                 "error": str(e)
@@ -111,7 +111,7 @@ class ArchitectPlannerAgent(BaseAgent):
         """
         Handles Product Requirements Document creation tasks.
         """
-        self.log_activity(ActivityType.PROCESSING, "Creating Product Requirements Document")
+        await self.log_activity(ActivityType.TASK_PROGRESS, "Creating Product Requirements Document")
         
         try:
             prd_prompt = f"""
@@ -132,8 +132,9 @@ class ArchitectPlannerAgent(BaseAgent):
             Provide detailed, actionable content for each section.
             """
             
-            response = await self.llm_service.generate_response(
-                prompt=prd_prompt,
+            response = await self.llm_service.invoke(
+                system_prompt="You are an expert product manager and technical architect.",
+                user_prompt=prd_prompt,
                 model="compound-beta"
             )
             
@@ -145,14 +146,14 @@ class ArchitectPlannerAgent(BaseAgent):
             }
             
         except Exception as e:
-            self.log_activity(ActivityType.ERROR, f"Error in PRD task: {e}")
+            await self.log_activity(ActivityType.ERROR, f"Error in PRD task: {e}")
             raise
     
     async def _handle_architecture_task(self, task: EnhancedTask) -> Dict:
         """
         Handles system architecture design tasks.
         """
-        self.log_activity(ActivityType.PROCESSING, "Designing system architecture")
+        await self.log_activity(ActivityType.TASK_PROGRESS, "Designing system architecture")
         
         try:
             arch_prompt = f"""
@@ -173,8 +174,9 @@ class ArchitectPlannerAgent(BaseAgent):
             Provide detailed architectural documentation with rationale for design decisions.
             """
             
-            response = await self.llm_service.generate_response(
-                prompt=arch_prompt,
+            response = await self.llm_service.invoke(
+                system_prompt="You are an expert system architect and technical lead.",
+                user_prompt=arch_prompt,
                 model="compound-beta"
             )
             
@@ -186,14 +188,14 @@ class ArchitectPlannerAgent(BaseAgent):
             }
             
         except Exception as e:
-            self.log_activity(ActivityType.ERROR, f"Error in architecture task: {e}")
+            await self.log_activity(ActivityType.ERROR, f"Error in architecture task: {e}")
             raise
     
     async def _handle_breakdown_task(self, task: EnhancedTask) -> Dict:
         """
         Handles task breakdown and decomposition.
         """
-        self.log_activity(ActivityType.PROCESSING, "Breaking down project into tasks")
+        await self.log_activity(ActivityType.TASK_PROGRESS, "Breaking down project into tasks")
         
         try:
             breakdown_prompt = f"""
@@ -212,8 +214,9 @@ class ArchitectPlannerAgent(BaseAgent):
             Ensure tasks are specific, measurable, and achievable.
             """
             
-            response = await self.llm_service.generate_response(
-                prompt=breakdown_prompt,
+            response = await self.llm_service.invoke(
+                system_prompt="You are an expert project manager and technical lead.",
+                user_prompt=breakdown_prompt,
                 model="compound-beta"
             )
             
@@ -225,14 +228,14 @@ class ArchitectPlannerAgent(BaseAgent):
             }
             
         except Exception as e:
-            self.log_activity(ActivityType.ERROR, f"Error in breakdown task: {e}")
+            await self.log_activity(ActivityType.ERROR, f"Error in breakdown task: {e}")
             raise
     
     async def _handle_requirements_task(self, task: EnhancedTask) -> Dict:
         """
         Handles requirements analysis and specification.
         """
-        self.log_activity(ActivityType.PROCESSING, "Analyzing and documenting requirements")
+        await self.log_activity(ActivityType.TASK_PROGRESS, "Analyzing and documenting requirements")
         
         try:
             requirements_prompt = f"""
@@ -258,8 +261,9 @@ class ArchitectPlannerAgent(BaseAgent):
             Use clear, testable language for all requirements.
             """
             
-            response = await self.llm_service.generate_response(
-                prompt=requirements_prompt,
+            response = await self.llm_service.invoke(
+                system_prompt="You are an expert business analyst and requirements engineer.",
+                user_prompt=requirements_prompt,
                 model="compound-beta"
             )
             
@@ -271,14 +275,14 @@ class ArchitectPlannerAgent(BaseAgent):
             }
             
         except Exception as e:
-            self.log_activity(ActivityType.ERROR, f"Error in requirements task: {e}")
+            await self.log_activity(ActivityType.ERROR, f"Error in requirements task: {e}")
             raise
     
     async def _handle_synthesis_task(self, task: EnhancedTask) -> Dict:
         """
         Handles synthesis of research and information.
         """
-        self.log_activity(ActivityType.PROCESSING, "Synthesizing research and information")
+        await self.log_activity(ActivityType.TASK_PROGRESS, "Synthesizing research and information")
         
         try:
             synthesis_prompt = f"""
@@ -296,8 +300,9 @@ class ArchitectPlannerAgent(BaseAgent):
             Ensure the synthesis is actionable and provides clear direction.
             """
             
-            response = await self.llm_service.generate_response(
-                prompt=synthesis_prompt,
+            response = await self.llm_service.invoke(
+                system_prompt="You are an expert analyst and strategic planner.",
+                user_prompt=synthesis_prompt,
                 model="compound-beta"
             )
             
@@ -309,14 +314,14 @@ class ArchitectPlannerAgent(BaseAgent):
             }
             
         except Exception as e:
-            self.log_activity(ActivityType.ERROR, f"Error in synthesis task: {e}")
+            await self.log_activity(ActivityType.ERROR, f"Error in synthesis task: {e}")
             raise
     
     async def _handle_roadmap_task(self, task: EnhancedTask) -> Dict:
         """
         Handles roadmap and timeline creation.
         """
-        self.log_activity(ActivityType.PROCESSING, "Creating project roadmap")
+        await self.log_activity(ActivityType.TASK_PROGRESS, "Creating project roadmap")
         
         try:
             roadmap_prompt = f"""
@@ -334,8 +339,9 @@ class ArchitectPlannerAgent(BaseAgent):
             Provide realistic timelines with buffer for unexpected challenges.
             """
             
-            response = await self.llm_service.generate_response(
-                prompt=roadmap_prompt,
+            response = await self.llm_service.invoke(
+                system_prompt="You are an expert project manager and strategic planner.",
+                user_prompt=roadmap_prompt,
                 model="compound-beta"
             )
             
@@ -347,14 +353,14 @@ class ArchitectPlannerAgent(BaseAgent):
             }
             
         except Exception as e:
-            self.log_activity(ActivityType.ERROR, f"Error in roadmap task: {e}")
+            await self.log_activity(ActivityType.ERROR, f"Error in roadmap task: {e}")
             raise
     
     async def _handle_general_planning_task(self, task: EnhancedTask) -> Dict:
         """
         Handles general planning tasks.
         """
-        self.log_activity(ActivityType.PROCESSING, "Processing general planning task")
+        await self.log_activity(ActivityType.TASK_PROGRESS, "Processing general planning task")
         
         try:
             general_prompt = f"""
@@ -374,8 +380,9 @@ class ArchitectPlannerAgent(BaseAgent):
             Ensure the plan is detailed, actionable, and realistic.
             """
             
-            response = await self.llm_service.generate_response(
-                prompt=general_prompt,
+            response = await self.llm_service.invoke(
+                system_prompt="You are an expert project planner and technical consultant.",
+                user_prompt=general_prompt,
                 model="compound-beta"
             )
             
@@ -387,7 +394,7 @@ class ArchitectPlannerAgent(BaseAgent):
             }
             
         except Exception as e:
-            self.log_activity(ActivityType.ERROR, f"Error in general planning task: {e}")
+            await self.log_activity(ActivityType.ERROR, f"Error in general planning task: {e}")
             raise
     
     def _extract_prd_sections(self, document: str) -> List[str]:

@@ -41,9 +41,9 @@ import {
   Timeline,
   Brain
 } from 'lucide-react';
-import { chatService, coreServicesClient, AgentState, WorkflowState } from '@/lib/api';
+import { coreServicesClient, AgentState, WorkflowState } from '@/lib/api';
 import { ChatService } from '@/lib/api/chat-service';
-import { ResearchService } from '@/lib/api/research-service';
+import { researchService } from '@/lib/api/research-service';
 import { useOrchestratorState } from '@/lib/hooks/useOrchestratorState';
 import { useConfirmationManager } from '@/lib/hooks/useConfirmationManager';
 import { useArtifactManager } from '@/lib/hooks/useArtifactManager';
@@ -106,20 +106,21 @@ interface ConversationContext {
 }
 
 export function OrchestratorInterface({ className }: OrchestratorInterfaceProps) {
-  // Enhanced state management hooks
-  const {
-    state: orchestratorState,
-    addMessage,
-    addConfirmation,
-    removeConfirmation,
-    queueAction,
-    executeNextAction,
-    initializeSession,
-    clearState,
-    hasActiveActions,
-    nextAction,
-    isHealthy,
-    sessionDuration
+  // Enhanced state management hooks 
+  const { 
+    state: orchestratorState, 
+    updateState,
+    addMessage, 
+    addConfirmation, 
+    removeConfirmation, 
+    queueAction, 
+    executeNextAction, 
+    initializeSession, 
+    clearState, 
+    hasActiveActions, 
+    nextAction, 
+    isHealthy, 
+    sessionDuration 
   } = useOrchestratorState();
   
   const {
@@ -156,8 +157,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
   
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatService = new ChatService();
-  const researchService = new ResearchService();
+  // ChatService and researchService are imported as objects/singletons
   
   // Derived state from hooks
   const messages = orchestratorState.messages;
@@ -171,18 +171,18 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
   const isWaitingForConfirmation = hasActiveConfirmations;
   
   // Additional derived states for enhanced UI
-  const hasActiveActionsLocal = orchestratorState.actionQueue.length > 0;
-  const nextActionLocal = orchestratorState.actionQueue[0] || null;
-  const isHealthyLocal = orchestratorState.executionStats.errors < 3;
+  const hasActiveActionsLocal = orchestratorState.executionState.action_queue.length > 0;
+  const nextActionLocal = orchestratorState.executionState.action_queue[0] || null;
+  const isHealthyLocal = orchestratorState.errorCount < 3;
   
   const sessionDurationLocal = React.useMemo(() => {
-    if (!orchestratorState.sessionStartTime) return '0m';
-    const duration = Date.now() - orchestratorState.sessionStartTime;
+    if (!orchestratorState.conversationContext.session_metadata?.start_time) return '0m';
+    const duration = Date.now() - new Date(orchestratorState.conversationContext.session_metadata.start_time).getTime();
     const minutes = Math.floor(duration / 60000);
     const hours = Math.floor(minutes / 60);
     if (hours > 0) return `${hours}h ${minutes % 60}m`;
     return `${minutes}m`;
-  }, [orchestratorState.sessionStartTime]);
+  }, [orchestratorState.conversationContext.session_metadata?.start_time]);
 
   // Initialize orchestrator connection
   const initializeOrchestrator = useCallback(async () => {
@@ -218,12 +218,12 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
     try {
       const response = await coreServicesClient.getAgentStates();
       if (response.success) {
-        setAgentStates(response.agent_states);
+        updateState({ agentStates: response.agent_states });
       }
     } catch (error) {
       console.error('Failed to load agent states:', error);
     }
-  }, []);
+  }, [updateState]);
 
   // Scroll to bottom of messages
   const scrollToBottom = useCallback(() => {
@@ -234,24 +234,20 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  // Add message to conversation with enhanced features
-  const addMessage = useCallback((message: Omit<OrchestratorMessage, 'id' | 'timestamp'>) => {
-    const newMessage: OrchestratorMessage = {
-      ...message,
-      id: Date.now().toString(),
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, newMessage]);
-    
-    // Store in session memory
+  // Enhanced message storage with session memory
+  const storeMessageInMemory = useCallback(async (message: OrchestratorMessage) => {
     if (sessionId) {
-      coreServicesClient.storeMemory({
-        layer: 'session',
-        type: 'conversation',
-        key: `message_${newMessage.id}`,
-        data: newMessage,
-        metadata: { session_id: sessionId, workflow_mode: orchestratorMode }
-      }).catch(console.error);
+      try {
+        await coreServicesClient.storeMemory({
+          layer: 'session',
+          type: 'conversation',
+          key: `message_${message.id}`,
+          data: message,
+          metadata: { session_id: sessionId, workflow_mode: orchestratorMode }
+        });
+      } catch (error) {
+        console.error('Failed to store message in memory:', error);
+      }
     }
   }, [sessionId, orchestratorMode]);
 
@@ -312,7 +308,13 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
           });
           break;
         case 'transition_to_planning':
-          setConversationContext(prev => ({ ...prev, planning_phase: true, current_focus: 'planning' }));
+          updateState({ 
+            conversationContext: { 
+              ...conversationContext, 
+              planning_phase: true, 
+              current_focus: 'planning' 
+            } 
+          });
           addMessage({
             type: 'orchestrator',
             content: '🎯 Transitioning to planning phase. I will now coordinate with the architect planner to create detailed specifications.',
@@ -330,7 +332,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
         metadata: { action_type: 'error' }
       });
     }
-  }, [researchService, addMessage, setConversationContext]);
+  }, [researchService, addMessage, updateState, conversationContext]);
 
   // Add system message
   const addSystemMessage = (content: string) => {
@@ -340,29 +342,31 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
     });
   };
 
-  // Add orchestrator message
-  const addOrchestratorMessage = (content: string, metadata?: any) => {
-    const message: OrchestratorMessage = {
-      id: Date.now().toString(),
+  // Add orchestrator message with memory storage
+  const addOrchestratorMessage = useCallback(async (content: string, metadata?: any) => {
+    const message = addMessage({
       type: 'orchestrator',
       content,
-      timestamp: new Date(),
       metadata
-    };
-    setMessages(prev => [...prev, message]);
-  };
+    });
+    // Store in memory if message was created
+    if (message) {
+      await storeMessageInMemory(message);
+    }
+  }, [addMessage, storeMessageInMemory]);
 
-  // Add agent message
-  const addAgentMessage = (content: string, agentId: string, metadata?: any) => {
-    const message: OrchestratorMessage = {
-      id: Date.now().toString(),
+  // Add agent message with memory storage
+  const addAgentMessage = useCallback(async (content: string, agentId: string, metadata?: any) => {
+    const message = addMessage({
       type: 'agent',
       content,
-      timestamp: new Date(),
       metadata: { agent_id: agentId, ...metadata }
-    };
-    setMessages(prev => [...prev, message]);
-  };
+    });
+    // Store in memory if message was created
+    if (message) {
+      await storeMessageInMemory(message);
+    }
+  }, [addMessage, storeMessageInMemory]);
 
   // Enhanced send message with intelligent conversation flow and state management
   const sendMessage = useCallback(async () => {
@@ -430,7 +434,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
           );
 
           // Send to chat service with enhanced context
-          const response = await chatService.sendMessage({
+          const response = await ChatService.sendMessage({
             message: actionData.message,
             workflow_mode: actionData.context.orchestrator_mode,
             research_mode: 'knowledge',
@@ -1189,7 +1193,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">
-                        Queue: {orchestratorState.actionQueue.length}
+                        Queue: {orchestratorState.executionState.action_queue.length}
                       </Badge>
                       <Badge variant={isHealthyLocal ? 'default' : 'destructive'}>
                          {isHealthyLocal ? 'Healthy' : 'Issues'}
@@ -1197,9 +1201,9 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                     </div>
                   </div>
                   
-                  {orchestratorState.actionQueue.length > 0 ? (
+                  {orchestratorState.executionState.action_queue.length > 0 ? (
                     <div className="space-y-2">
-                      {orchestratorState.actionQueue.slice(0, 5).map((action, index) => (
+                      {orchestratorState.executionState.action_queue.slice(0, 5).map((action, index) => (
                         <div
                           key={action.id}
                           className={`p-3 border rounded-lg ${
@@ -1229,9 +1233,9 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                           )}
                         </div>
                       ))}
-                      {orchestratorState.actionQueue.length > 5 && (
+                      {orchestratorState.executionState.action_queue.length > 5 && (
                         <div className="text-center text-sm text-muted-foreground">
-                          ... and {orchestratorState.actionQueue.length - 5} more actions
+                          ... and {orchestratorState.executionState.action_queue.length - 5} more actions
                         </div>
                       )}
                     </div>
@@ -1245,7 +1249,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                   
                   <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                     <div className="text-center">
-                      <div className="text-2xl font-bold">{orchestratorState.executionStats.totalExecuted}</div>
+                      <div className="text-2xl font-bold">{orchestratorState.conversationContext.session_metadata?.completed_actions || 0}</div>
                       <div className="text-sm text-muted-foreground">Total Executed</div>
                     </div>
                     <div className="text-center">

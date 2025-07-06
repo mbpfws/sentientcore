@@ -610,16 +610,13 @@ Analyze the ENTIRE conversation context and cumulative understanding. Build upon
             import os
             research_path = os.path.join(os.getcwd(), "memory", "layer1_research_docs")
             if os.path.exists(research_path):
-                # Check for recent research files (within last hour)
-                import time
-                current_time = time.time()
+                # Check for any research files (not just recent ones)
                 for filename in os.listdir(research_path):
                     if filename.startswith("research_") and filename.endswith(".md"):
-                        file_path = os.path.join(research_path, filename)
-                        file_time = os.path.getmtime(file_path)
-                        # If file was created within last hour
-                        if current_time - file_time < 3600:  # 1 hour
-                            return True
+                        # Found at least one research file
+                        print(f"[Build 3] Found research artifacts in Layer 1 memory")
+                        return True
+            print(f"[Build 3] No research artifacts found in Layer 1 memory")
             return False
         except Exception as e:
             print(f"Error checking research artifacts: {e}")

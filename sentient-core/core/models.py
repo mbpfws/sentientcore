@@ -94,6 +94,7 @@ class Message(BaseModel):
     sender: str
     content: str
     image: Optional[bytes] = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
 class LogEntry(BaseModel):
     """Represents a single log entry for system monitoring and UI display."""

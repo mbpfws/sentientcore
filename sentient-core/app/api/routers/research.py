@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse, StreamingResponse
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from pydantic import BaseModel
@@ -12,6 +12,9 @@ import sys
 from io import BytesIO
 from pathlib import Path
 import markdown
+
+# Import SSE infrastructure
+from .sse_events import sse_manager, sse_event_handler
 
 # Optional WeasyPrint import for PDF generation - temporarily disabled
 # try:
@@ -34,27 +37,18 @@ from core.models import LogEntry
 
 router = APIRouter(prefix="/research", tags=["research"])
 
-# Global connections manager for WebSocket
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
-        
-    async def connect(self, websocket: WebSocket, research_id: str):
-        await websocket.accept()
-        self.active_connections[research_id] = websocket
-        
-    def disconnect(self, research_id: str):
-        if research_id in self.active_connections:
-            del self.active_connections[research_id]
-            
-    async def send_update(self, research_id: str, data: dict):
-        if research_id in self.active_connections:
-            try:
-                await self.active_connections[research_id].send_text(json.dumps(data))
-            except:
-                self.disconnect(research_id)
+# SSE Integration Functions
+def get_sse_manager():
+    """Get the global SSE connection manager"""
+    return sse_manager
 
-manager = ConnectionManager()
+def get_sse_event_handler():
+    """Get the global SSE event handler"""
+    return sse_event_handler
+
+async def send_research_update(research_id: str, data: dict):
+    """Send research update via SSE"""
+    await sse_manager.broadcast_to_research(data, research_id)
 
 # Request/Response Models
 class ResearchRequest(BaseModel):
@@ -293,8 +287,8 @@ async def execute_research_task(research_id: str, request: ResearchRequest):
                     "timestamp": datetime.now().isoformat()
                 })
             
-            # Send real-time update
-            await manager.send_update(research_id, {
+            # Send real-time update via SSE
+            await send_research_update(research_id, {
                 "type": "search_progress",
                 "progress": progress,
                 "current_step": f"Search {i+1}/{total_steps}",
@@ -393,8 +387,8 @@ async def update_research_status(
         # Save to file system for persistence
         save_research_result_to_file(research_result)
         
-        # Send WebSocket update
-        await manager.send_update(research_id, {
+        # Send SSE update
+        await send_research_update(research_id, {
             "type": "research_update",
             "result": research_result.dict(),
             "research_id": research_id,
@@ -533,16 +527,8 @@ async def export_research_markdown(request: ExportRequest) -> JSONResponse:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to export Markdown: {str(e)}")
 
-@router.websocket("/ws/{research_id}")
-async def websocket_endpoint(websocket: WebSocket, research_id: str):
-    """WebSocket endpoint for real-time research updates"""
-    await manager.connect(websocket, research_id)
-    try:
-        while True:
-            # Keep connection alive
-            await asyncio.sleep(1)
-    except WebSocketDisconnect:
-        manager.disconnect(research_id)
+# WebSocket endpoint removed - research updates now use SSE
+# Clients should connect to /api/sse/research/{research_id} for real-time updates
 
 def generate_research_html(result: ResearchResult) -> str:
     """Generate HTML content for PDF export"""

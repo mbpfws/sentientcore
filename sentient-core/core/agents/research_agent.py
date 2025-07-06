@@ -50,9 +50,10 @@ class ResearchAgent(BaseAgent):
             for tool in agentic_tools:
                 self.llm_service.register_tool(tool)
             
-            self.log_activity(ActivityType.PROCESSING, "Web search tools registered successfully")
+            # Note: Cannot use await in __init__, will log during first task execution
+            print("Web search tools registered successfully")
         except Exception as e:
-            self.log_activity(ActivityType.ERROR, f"Failed to register web search tools: {str(e)}")
+            print(f"Failed to register web search tools: {str(e)}")
 
     def can_handle_task(self, task: EnhancedTask) -> bool:
         """
@@ -67,7 +68,7 @@ class ResearchAgent(BaseAgent):
         Processes a research task by executing the full research workflow.
         """
         try:
-            self.log_activity(ActivityType.TASK_STARTED, f"Processing research task: {task.description}")
+            await self.log_activity(ActivityType.TASK_START, f"Processing research task: {task.description}")
             
             # Create research state from task
             research_state = ResearchState(
@@ -88,7 +89,7 @@ class ResearchAgent(BaseAgent):
             # Synthesize final report
             research_state = await self.synthesize_report(research_state)
             
-            self.log_activity(ActivityType.TASK_COMPLETED, f"Research task completed: {task.description}")
+            await self.log_activity(ActivityType.TASK_COMPLETED, f"Research task completed: {task.description}")
             
             return {
                 "status": "completed",
@@ -98,7 +99,7 @@ class ResearchAgent(BaseAgent):
             }
             
         except Exception as e:
-            self.handle_error(e, f"Error processing research task: {task.description}")
+            await self.handle_error(e, f"Error processing research task: {task.description}")
             return {
                 "status": "error",
                 "error": str(e),
@@ -142,13 +143,13 @@ Respond with only one word: KNOWLEDGE, DEEP, or BEST_IN_CLASS
         """
         Generates research steps based on the determined research mode.
         """
-        self.log_activity(ActivityType.PROCESSING, "Starting intelligent research planning")
+        await self.log_activity(ActivityType.TASK_PROGRESS, "Starting intelligent research planning")
         state.logs.append(LogEntry(source="ResearchAgent", message="Starting intelligent research planning..."))
         print("---RESEARCH AGENT: INTELLIGENT PLANNING---")
         
         # Determine research mode
         research_mode = await self.determine_research_mode(state.original_query)
-        self.log_activity(ActivityType.PROCESSING, f"Selected research mode: {research_mode.value}")
+        await self.log_activity(ActivityType.TASK_PROGRESS, f"Selected research mode: {research_mode.value}")
         state.logs.append(LogEntry(source="ResearchAgent", message=f"Selected research mode: {research_mode.value}"))
         print(f"Research mode selected: {research_mode.value}")
         
@@ -245,12 +246,12 @@ Focus on gathering different approaches, solutions, or tools, then evaluating th
         
         pending_step = next((step for step in state.steps if step.status == "pending"), None)
         if not pending_step:
-            self.log_activity(ActivityType.PROCESSING, "No pending search steps found")
+            await self.log_activity(ActivityType.TASK_PROGRESS, "No pending search steps found")
             state.logs.append(LogEntry(source="ResearchAgent", message="No pending search steps found."))
             return state
 
         log_msg = f"Executing agentic search for: '{pending_step.query}'"
-        self.log_activity(ActivityType.PROCESSING, log_msg)
+        await self.log_activity(ActivityType.PROCESSING, log_msg)
         state.logs.append(LogEntry(source="ResearchAgent", message=log_msg))
         print(log_msg)
         
@@ -314,7 +315,7 @@ Format your response with clear structure, detailed findings, and source attribu
         except Exception as e:
             # Fallback to regular generation without tools
             print(f"Agentic search failed, falling back to regular search: {e}")
-            self.log_activity(ActivityType.ERROR, f"Agentic search failed: {str(e)}")
+            await self.log_activity(ActivityType.ERROR, f"Agentic search failed: {str(e)}")
             
             search_result = await self.llm_service.generate(
                 system_prompt="You are a research analyst. Provide comprehensive research findings.",
@@ -326,7 +327,7 @@ Format your response with clear structure, detailed findings, and source attribu
         pending_step.status = "completed"
         
         log_msg = f"Agentic search for '{pending_step.query}' completed with verbose results."
-        self.log_activity(ActivityType.PROCESSING, log_msg)
+        await self.log_activity(ActivityType.PROCESSING, log_msg)
         state.logs.append(LogEntry(source="ResearchAgent", message=log_msg))
         print(log_msg)
         
@@ -345,7 +346,7 @@ Format your response with clear structure, detailed findings, and source attribu
         """
         Synthesizes research findings into a comprehensive report based on research mode.
         """
-        self.log_activity(ActivityType.PROCESSING, "Synthesizing comprehensive report")
+        await self.log_activity(ActivityType.PROCESSING, "Synthesizing comprehensive report")
         state.logs.append(LogEntry(source="ResearchAgent", message="Synthesizing comprehensive report..."))
         print("---RESEARCH AGENT: ADVANCED SYNTHESIS---")
 
@@ -396,7 +397,7 @@ Create a report with:
         state.final_report = response.get("report", "Failed to generate knowledge report.")
         state.continual_search_suggestions = response.get("continual_search_suggestions", [])
         
-        self.log_activity(ActivityType.PROCESSING, "Knowledge report synthesized")
+        await self.log_activity(ActivityType.PROCESSING, "Knowledge report synthesized")
         state.logs.append(LogEntry(source="ResearchAgent", message="Knowledge report synthesized."))
         return state
 
@@ -439,7 +440,7 @@ Use sophisticated reasoning, identify patterns, contradictions, and provide deep
         state.final_report = response.get("report", "Failed to generate deep research report.")
         state.continual_search_suggestions = response.get("continual_search_suggestions", [])
         
-        self.log_activity(ActivityType.PROCESSING, "Deep research report synthesized")
+        await self.log_activity(ActivityType.PROCESSING, "Deep research report synthesized")
         state.logs.append(LogEntry(source="ResearchAgent", message="Deep research report synthesized."))
         return state
 
@@ -481,7 +482,7 @@ Focus on helping the reader make the best decision for their specific context.
         state.final_report = response.get("report", "Failed to generate best-in-class report.")
         state.continual_search_suggestions = response.get("continual_search_suggestions", [])
         
-        self.log_activity(ActivityType.PROCESSING, "Best-in-class report synthesized")
+        await self.log_activity(ActivityType.PROCESSING, "Best-in-class report synthesized")
         state.logs.append(LogEntry(source="ResearchAgent", message="Best-in-class report synthesized."))
         return state
 
@@ -499,12 +500,12 @@ Focus on helping the reader make the best decision for their specific context.
             return json.loads(cleaned_response)
             
         except json.JSONDecodeError as e:
-            self.log_activity(ActivityType.ERROR, f"JSON parsing error: {e}")
+            await self.log_activity(ActivityType.ERROR, f"JSON parsing error: {e}")
             print(f"JSON parsing error: {e}")
             print(f"Raw response: {response}")
             return {"queries": [user_prompt]} if model_type == "planning" else {"report": response, "continual_search_suggestions": []}
         except Exception as e:
-            self.log_activity(ActivityType.ERROR, f"Error getting response: {e}")
+            await self.log_activity(ActivityType.ERROR, f"Error getting response: {e}")
             print(f"Error getting response: {e}")
             return {"queries": [user_prompt]} if model_type == "planning" else {"report": f"Error: {e}", "continual_search_suggestions": []}
 

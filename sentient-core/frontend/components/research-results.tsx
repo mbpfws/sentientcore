@@ -70,7 +70,7 @@ const ResearchResults: React.FC<ResearchResultsProps> = ({ workflowId }) => {
   useEffect(() => {
     loadResearchResults();
     
-    // Set up WebSocket listener for real-time updates
+    // Set up SSE listener for real-time updates
     const listenerId = `research-results-${workflowId}`;
     researchService.addUpdateListener(listenerId, handleResearchUpdate);
     

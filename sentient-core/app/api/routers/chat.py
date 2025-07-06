@@ -283,7 +283,7 @@ async def get_chat_history(
                             id=f"msg_{int(time.time() * 1000)}_{len(messages)}",
                             content=msg.content,
                             sender=msg.sender,
-                            created_at=msg.created_at or time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                            created_at=getattr(msg, 'created_at', None).strftime("%Y-%m-%dT%H:%M:%SZ") if getattr(msg, 'created_at', None) else time.strftime("%Y-%m-%dT%H:%M:%SZ"),
                             session_id=session_id
                         ))
             except Exception as e:

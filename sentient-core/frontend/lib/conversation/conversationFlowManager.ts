@@ -1,5 +1,5 @@
 import { ConversationContext, OrchestratorMessage } from '../hooks/useOrchestratorState';
-import { coreServicesClient } from '../services/coreServicesClient';
+import { coreServicesClient } from '../api/core-services';
 
 export interface ConversationFlow {
   id: string;
