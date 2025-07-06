@@ -210,22 +210,39 @@ async def get_session_status(
         state_manager = service_factory.state_manager
         session_data = await state_manager.load_session_data(session_id)
         
-        if not session_state:
+        if not session_data:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
         
         # Calculate metrics
-        messages = getattr(session_state, 'messages', [])
-        logs = getattr(session_state, 'logs', [])
-        conversation_history = getattr(session_state, 'conversation_history', [])
+        messages = session_data.data.get('messages', []) if session_data.data else []
+        logs = session_data.data.get('logs', []) if session_data.data else []
+        conversation_history = session_data.data.get('conversation_history', []) if session_data.data else []
         
         # Count different types of activities
-        research_logs = [log for log in logs if 'BUILD 2' in getattr(log, 'message', '') or 'research' in getattr(log, 'source', '').lower()]
-        planning_logs = [log for log in logs if 'BUILD 3' in getattr(log, 'message', '') or 'planning' in getattr(log, 'source', '').lower()]
-        error_logs = [log for log in logs if getattr(log, 'level', 'INFO') == 'ERROR']
+        research_logs = []
+        planning_logs = []
+        error_logs = []
+        
+        for log in logs:
+            if isinstance(log, dict):
+                message = log.get('message', '')
+                source = log.get('source', '').lower()
+                level = log.get('level', 'INFO')
+            else:
+                message = getattr(log, 'message', '')
+                source = getattr(log, 'source', '').lower()
+                level = getattr(log, 'level', 'INFO')
+            
+            if 'BUILD 2' in message or 'research' in source:
+                research_logs.append(log)
+            if 'BUILD 3' in message or 'planning' in source:
+                planning_logs.append(log)
+            if level == 'ERROR':
+                error_logs.append(log)
         
         return {
             "session_id": session_id,
-            "next_action": getattr(session_state, 'next_action', 'unknown'),
+            "next_action": session_data.data.get('next_action', 'unknown') if session_data.data else 'unknown',
             "metrics": {
                 "total_messages": len(messages),
                 "total_logs": len(logs),
@@ -234,7 +251,7 @@ async def get_session_status(
                 "planning_activities": len(planning_logs),
                 "error_count": len(error_logs)
             },
-            "last_activity": logs[-1].timestamp if logs else None,
+            "last_activity": logs[-1].get('timestamp') if logs and isinstance(logs[-1], dict) else (getattr(logs[-1], 'timestamp', None) if logs else None),
             "builds_active": {
                 "build1_conversation": len(conversation_history) > 0,
                 "build2_research": len(research_logs) > 0,

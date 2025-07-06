@@ -10,8 +10,8 @@ from pathlib import Path
 
 # Import implementation agent
 from core.agents.feature_implementation_agent import get_feature_implementation_agent
-from core.services.enhanced_llm_service_main import get_enhanced_llm_service
-from core.services.memory_service import get_memory_service, MemoryLayer
+from core.services.service_factory import ServiceFactory, get_service_factory
+from core.services.memory_service import MemoryLayer
 
 # Import models
 from pydantic import BaseModel
@@ -119,10 +119,10 @@ router = APIRouter(prefix="/implementation", tags=["implementation"])
 implementation_store: Dict[str, Dict[str, Any]] = {}
 active_implementations: Dict[str, asyncio.Task] = {}
 
-def get_implementation_agent():
+def get_implementation_agent(service_factory: ServiceFactory = Depends(get_service_factory)):
     """Get feature implementation agent instance"""
-    llm_service = get_enhanced_llm_service()
-    memory_service = get_memory_service()
+    llm_service = service_factory.llm_service
+    memory_service = service_factory.memory_service
     return get_feature_implementation_agent(llm_service, memory_service)
 
 @router.post("/start", response_model=Dict[str, str])
