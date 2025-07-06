@@ -546,84 +546,112 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
           });
           
           // Handle specific transitions
-          if (transition.to_phase === 'research_planning' && !context.research_needed) {
-            // Transition to planning
-            const confirmationId = `confirm_${Date.now()}`;
-            addConfirmation({
-              id: confirmationId,
-        message: 'I have gathered sufficient information about your requirements. Should I proceed to create a detailed plan and specifications?',
-        action: 'transition_to_planning',
-        metadata: { context },
-        timestamp: new Date()
-      }]);
-      setIsWaitingForConfirmation(true);
-      
-      addMessage({
-        type: 'confirmation',
-        content: 'I have gathered sufficient information about your requirements. Should I proceed to create a detailed plan and specifications?',
-        metadata: { 
-          requires_confirmation: true,
-          confirmation_id: confirmationId
-        }
-      });
-    } else if (context.research_needed && context.current_focus === 'requirements_gathering') {
-      // Suggest research
-      const confirmationId = `confirm_${Date.now()}`;
-      setPendingConfirmations(prev => [...prev, {
-        id: confirmationId,
-        message: 'Based on your requirements, I recommend conducting research to gather more information. Should I start the research process?',
-        action: 'start_research',
-        metadata: {
-          query: context.user_intent,
-          mode: 'deep',
-          workflow_id: sessionId
-        },
-        timestamp: new Date()
-      }]);
-      setIsWaitingForConfirmation(true);
-      
-      addMessage({
-        type: 'confirmation',
-        content: 'Based on your requirements, I recommend conducting research to gather more information. Should I start the research process?',
-        metadata: { 
-          requires_confirmation: true,
-          confirmation_id: confirmationId
-        }
-      });
-    } else if (context.user_intent === 'development_project') {
-      // Create workflow for development projects
-      const workflowId = `workflow_${Date.now()}`;
-      const newWorkflow: ActiveWorkflow = {
-        id: workflowId,
-        name: `Task: ${context.user_intent.substring(0, 50)}...`,
-        status: 'running',
-        progress: 0,
-        current_step: 'Planning',
-        agents_involved: ['research_agent', 'architect_agent'],
-        started_at: new Date()
-      };
-      
-      setActiveWorkflows(prev => [...prev, newWorkflow]);
-      addSystemMessage(`Created workflow: ${workflowId}`);
-      
-      // Simulate agent activation
-      setTimeout(() => {
-        addAgentMessage(
-          'Starting research phase for the requested task',
-          'research_agent',
-          { workflow_id: workflowId, action_type: 'research_start' }
-        );
-      }, 1000);
-      
-      setTimeout(() => {
-        addAgentMessage(
-          'Analyzing requirements and creating architectural plan',
-          'architect_agent',
-          { workflow_id: workflowId, action_type: 'planning_start' }
-        );
-      }, 2000);
-    }
-  };
+             if (transition.to_phase === 'research_planning' && !context.research_needed) {
+               // Transition to planning
+               const confirmationId = `confirm_${Date.now()}`;
+               addConfirmation({
+                 id: confirmationId,
+                 message: 'I have gathered sufficient information about your requirements. Should I proceed to create a detailed plan and specifications?',
+                 action: 'transition_to_planning',
+                 metadata: { context },
+                 timestamp: new Date()
+               });
+               
+               addMessage({
+                 type: 'confirmation',
+                 content: 'I have gathered sufficient information about your requirements. Should I proceed to create a detailed plan and specifications?',
+                 metadata: { 
+                   requires_confirmation: true,
+                   confirmation_id: confirmationId
+                 }
+               });
+             } else if (transition.to_phase === 'research_execution' && context.research_needed) {
+               // Suggest research
+               const confirmationId = `confirm_${Date.now()}`;
+               addConfirmation({
+                 id: confirmationId,
+                 message: 'Based on your requirements, I recommend conducting research to gather more information. Should I start the research process?',
+                 action: 'start_research',
+                 metadata: {
+                   query: context.user_intent,
+                   mode: 'deep',
+                   workflow_id: sessionId
+                 },
+                 timestamp: new Date()
+               });
+               
+               addMessage({
+                 type: 'confirmation',
+                 content: 'Based on your requirements, I recommend conducting research to gather more information. Should I start the research process?',
+                 metadata: { 
+                   requires_confirmation: true,
+                   confirmation_id: confirmationId
+                 }
+               });
+             } else if (transition.to_phase === 'development_planning' && context.user_intent === 'development_project') {
+               // Create workflow for development projects
+               const workflowId = `workflow_${Date.now()}`;
+               const newWorkflow: ActiveWorkflow = {
+                 id: workflowId,
+                 name: `Task: ${context.user_intent.substring(0, 50)}...`,
+                 status: 'running',
+                 progress: 0,
+                 current_step: 'Planning',
+                 agents_involved: ['research_agent', 'architect_agent'],
+                 started_at: new Date()
+               };
+               
+               // Add workflow using state management
+               addMessage({
+                 type: 'system',
+                 content: `Created workflow: ${workflowId}`,
+                 metadata: { action_type: 'workflow_created', workflow_id: workflowId }
+               });
+               
+               // Simulate agent activation
+               setTimeout(() => {
+                 addMessage({
+                   type: 'agent',
+                   content: 'Starting research phase for the requested task',
+                   metadata: { 
+                     agent_id: 'research_agent',
+                     workflow_id: workflowId, 
+                     action_type: 'research_start' 
+                   }
+                 });
+               }, 1000);
+               
+               setTimeout(() => {
+                 addMessage({
+                   type: 'agent',
+                   content: 'Analyzing requirements and creating architectural plan',
+                   metadata: { 
+                     agent_id: 'architect_agent',
+                     workflow_id: workflowId, 
+                     action_type: 'planning_start' 
+                   }
+                 });
+               }, 2000);
+             }
+             
+             break; // Exit after first matching transition
+         }
+       }
+     }
+     
+     // Generate contextual response if no specific transitions occurred
+     const contextualResponse = conversationFlowManager.generateContextualResponse(context, flowAnalysis);
+     if (contextualResponse && contextualResponse !== enhancedResponse.content) {
+       addMessage({
+         type: 'orchestrator',
+         content: contextualResponse,
+         metadata: { 
+           action_type: 'contextual_guidance',
+           flow_phase: currentFlow?.current_phase
+         }
+       });
+     }
+   };
 
   // Monitor agent states
   useEffect(() => {
