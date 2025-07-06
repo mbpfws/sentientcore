@@ -1,17 +1,52 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Card } from './ui/card';
-import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
-import { Badge } from './ui/badge';
-import { Separator } from './ui/separator';
-import { ScrollArea } from './ui/scroll-area';
-import { Alert, AlertDescription } from './ui/alert';
-import { coreServicesClient, AgentState, WorkflowState } from '../lib/api';
-import { ChatService } from '../lib/api/chat-service';
-import { ResearchService } from '../lib/api/research-service';
-import { CheckCircle, Clock, AlertCircle, Download, FileText, Users, Brain, Search, Settings } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { 
+  Send, 
+  Bot, 
+  User, 
+  Settings, 
+  RefreshCw, 
+  CheckCircle, 
+  AlertCircle, 
+  Clock,
+  Search,
+  FileText,
+  Zap,
+  Users,
+  Activity,
+  Download,
+  Eye,
+  MessageSquare,
+  Lightbulb,
+  Target,
+  Workflow,
+  Play,
+  Pause,
+  Square,
+  Star,
+  Filter,
+  Grid,
+  List,
+  Timeline,
+  Brain
+} from 'lucide-react';
+import { chatService, coreServicesClient, AgentState, WorkflowState } from '@/lib/api';
+import { ChatService } from '@/lib/api/chat-service';
+import { ResearchService } from '@/lib/api/research-service';
+import { useOrchestratorState } from '@/lib/hooks/useOrchestratorState';
+import { useConfirmationManager } from '@/lib/hooks/useConfirmationManager';
+import { useArtifactManager } from '@/lib/hooks/useArtifactManager';
 
 interface OrchestratorInterfaceProps {
   className?: string;
@@ -69,15 +104,56 @@ interface ConversationContext {
 }
 
 export function OrchestratorInterface({ className }: OrchestratorInterfaceProps) {
-  const [messages, setMessages] = useState<OrchestratorMessage[]>([]);
+  // Enhanced state management hooks
+  const {
+    state: orchestratorState,
+    addMessage,
+    addConfirmation,
+    removeConfirmation,
+    queueAction,
+    executeNextAction,
+    initializeSession,
+    clearState,
+    hasActiveActions,
+    nextAction,
+    isHealthy,
+    sessionDuration
+  } = useOrchestratorState();
+  
+  const {
+    createConfirmation,
+    handleConfirmationResponse,
+    removeDialog,
+    clearAllDialogs,
+    saveSettings: saveConfirmationSettings,
+    hasActiveConfirmations,
+    totalPendingConfirmations,
+    currentPriority,
+    stats: confirmationStats
+  } = useConfirmationManager();
+  
+  const {
+    state: artifactState,
+    loadArtifacts,
+    createArtifact,
+    selectArtifact,
+    toggleFavorite,
+    searchArtifacts,
+    filteredArtifacts,
+    stats: artifactStats,
+    hasArtifacts
+  } = useArtifactManager();
+  
+  // Local UI state
+  const [input, setInput] = useState('');
   const [inputMessage, setInputMessage] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedTab, setSelectedTab] = useState('conversation');
+  const [showSettings, setShowSettings] = useState(false);
+  const [messages, setMessages] = useState<OrchestratorMessage[]>([]);
   const [agentStates, setAgentStates] = useState<Record<string, AgentState>>({});
   const [activeWorkflows, setActiveWorkflows] = useState<ActiveWorkflow[]>([]);
-  const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
-  const [orchestratorMode, setOrchestratorMode] = useState<'intelligent' | 'multi_agent' | 'legacy'>('intelligent');
   const [isConnected, setIsConnected] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [pendingConfirmations, setPendingConfirmations] = useState<PendingConfirmation[]>([]);
   const [conversationContext, setConversationContext] = useState<ConversationContext>({
     user_intent: '',
@@ -87,62 +163,44 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
     current_focus: 'requirements_gathering',
     artifacts_generated: []
   });
-  const [sessionId, setSessionId] = useState<string>('');
   const [isWaitingForConfirmation, setIsWaitingForConfirmation] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [orchestratorMode, setOrchestratorMode] = useState<'intelligent' | 'multi_agent' | 'legacy'>('intelligent');
+  
+  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatService = new ChatService();
   const researchService = new ResearchService();
+  
+  // Derived state from hooks
+  const messages = orchestratorState.messages;
+  const isProcessing = orchestratorState.isProcessing;
+  const agentStates = orchestratorState.agentStates;
+  const activeWorkflows = orchestratorState.activeWorkflows;
+  const isConnected = orchestratorState.isConnected;
+  const sessionId = orchestratorState.sessionId;
+  const pendingConfirmations = orchestratorState.pendingConfirmations;
+  const conversationContext = orchestratorState.conversationContext;
+  const isWaitingForConfirmation = hasActiveConfirmations;
 
   // Initialize orchestrator connection
   const initializeOrchestrator = useCallback(async () => {
-    setIsConnected(false);
-    setMessages([]);
-    setActiveWorkflows([]);
-    setPendingConfirmations([]);
-    setConversationContext({
-      user_intent: '',
-      requirements_gathered: false,
-      research_needed: false,
-      planning_phase: false,
-      current_focus: 'requirements_gathering',
-      artifacts_generated: []
-    });
-    
     try {
+      // Initialize session using enhanced state management
+      const newSessionId = await initializeSession();
+      
+      // Initialize core services
       const response = await coreServicesClient.initializeServices();
       if (response.success) {
-        setIsConnected(true);
-        
-        // Load agent states
-        await loadAgentStates();
-        
-        // Load existing conversation context if session exists
-        if (sessionId) {
-          try {
-            const existingContext = await coreServicesClient.getConversationContext(sessionId);
-            setConversationContext(existingContext);
-            
-            // Load pending confirmations
-            const confirmationsResult = await coreServicesClient.getPendingConfirmations(sessionId);
-            if (confirmationsResult.confirmations.length > 0) {
-              setPendingConfirmations(confirmationsResult.confirmations.map(conf => ({
-                id: conf.confirmation_id,
-                message: conf.message,
-                action: conf.action_type,
-                metadata: conf.metadata,
-                timestamp: new Date(conf.timestamp)
-              })));
-              setIsWaitingForConfirmation(true);
-            }
-          } catch (error) {
-            console.warn('Failed to load existing session data:', error);
-          }
-        }
+        // Load artifacts
+        await loadArtifacts();
         
         // Add welcome message
         addMessage({
           type: 'orchestrator',
-          content: `🤖 AI Orchestrator initialized in ${orchestratorMode} mode. How can I help you today?`,
+          content: `🤖 AI Orchestrator initialized in ${orchestratorMode} mode with enhanced state management. How can I help you today?`,
           metadata: { action_type: 'initialization' }
         });
       }
@@ -154,7 +212,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
         metadata: { action_type: 'error' }
       });
     }
-  }, [sessionId, orchestratorMode, addMessage, loadAgentStates]);
+  }, [initializeSession, loadArtifacts, addMessage, orchestratorMode]);
 
   // Load agent states
   const loadAgentStates = useCallback(async () => {
@@ -198,47 +256,46 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
     }
   }, [sessionId, orchestratorMode]);
 
-  // Handle confirmation responses
-  const handleConfirmation = useCallback(async (confirmationId: string, approved: boolean) => {
-    const confirmation = pendingConfirmations.find(c => c.id === confirmationId);
-    if (!confirmation) return;
-
-    setIsWaitingForConfirmation(false);
-    setPendingConfirmations(prev => prev.filter(c => c.id !== confirmationId));
-
+  // Handle confirmation responses using enhanced confirmation manager
+  const handleConfirmationLocal = useCallback(async (confirmationId: string, approved: boolean) => {
     try {
-      // Send confirmation to backend API
-      const result = await coreServicesClient.handleConfirmation({
-        confirmation_id: confirmationId,
-        confirmed: approved,
-        session_id: sessionId || `session_${Date.now()}`
-      });
-
-      if (approved) {
-        addMessage({
-          type: 'system',
-          content: `✅ Confirmed: ${confirmation.action} - ${result.message}`,
-          metadata: { confirmation_id: confirmationId, status: 'approved', action_executed: result.action_executed }
-        });
-
-        // Execute the confirmed action locally if needed
-        await executeConfirmedAction(confirmation);
-      } else {
-        addMessage({
-          type: 'system',
-          content: `❌ Declined: ${confirmation.action}`,
-          metadata: { confirmation_id: confirmationId, status: 'declined' }
-        });
+      // Use the enhanced confirmation manager
+      const result = await handleConfirmationResponse(confirmationId, approved);
+      
+      if (result.success) {
+        if (approved && result.action) {
+          // Queue the confirmed action for execution
+          await queueAction({
+            id: `action_${Date.now()}`,
+            type: 'confirmed_action',
+            priority: 'high',
+            data: result.action,
+            execute: async (actionData) => {
+              await executeConfirmedAction(actionData);
+            }
+          });
+          
+          // Execute the next action in queue
+          await executeNextAction();
+        } else if (!approved) {
+          // Add rejection message
+          addMessage({
+            type: 'system',
+            content: `❌ Action was declined by user.`,
+            metadata: { action_type: 'confirmation_declined', confirmation_id: confirmationId }
+          });
+        }
       }
+      
     } catch (error) {
       console.error('Error handling confirmation:', error);
       addMessage({
         type: 'system',
-        content: `❌ Error processing confirmation: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        metadata: { confirmation_id: confirmationId, status: 'error' }
+        content: 'Error occurred while processing confirmation. Please try again.',
+        metadata: { action_type: 'error' }
       });
     }
-  }, [pendingConfirmations, addMessage, coreServicesClient, sessionId]);
+  }, [handleConfirmationResponse, queueAction, executeNextAction, addMessage]);
 
   // Execute confirmed actions
   const executeConfirmedAction = useCallback(async (confirmation: PendingConfirmation) => {
@@ -308,61 +365,67 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
     setMessages(prev => [...prev, message]);
   };
 
-  // Enhanced send message with intelligent conversation flow
-  const sendMessage = async () => {
-    if (!inputMessage.trim() || isProcessing || isWaitingForConfirmation) return;
+  // Enhanced send message with intelligent conversation flow and state management
+  const sendMessage = useCallback(async () => {
+    if (!input.trim() || isProcessing || isWaitingForConfirmation) return;
 
-    const userMessage = inputMessage.trim();
-    setInputMessage('');
-    setIsProcessing(true);
+    const userMessage = input.trim();
+    setInput('');
 
-    // Add user message
+    // Add user message using enhanced state management
     addMessage({
       type: 'user',
       content: userMessage,
     });
 
     try {
-      // Initialize session if not exists
-      if (!sessionId) {
-        const newSessionId = `session_${Date.now()}`;
-        setSessionId(newSessionId);
-      }
-
       // Analyze user intent and update conversation context
       const updatedContext = await analyzeUserIntent(userMessage, conversationContext);
-      setConversationContext(updatedContext);
-
-      // Update conversation context in backend
-      try {
-        await coreServicesClient.updateConversationContext(sessionId || `session_${Date.now()}`, updatedContext);
-      } catch (error) {
-        console.warn('Failed to update conversation context:', error);
-      }
-
-      // Store the conversation in memory
-      await coreServicesClient.storeConversation(
-        `User: ${userMessage}`,
-        { 
-          orchestrator_mode: orchestratorMode,
-          timestamp: new Date().toISOString(),
+      
+      // Queue the message processing action
+      await queueAction({
+        id: `action_${Date.now()}`,
+        type: 'send_message',
+        priority: 'high',
+        data: {
+          message: userMessage,
           session_id: sessionId,
-          context: updatedContext
+          context: {
+            orchestrator_mode: orchestratorMode,
+            conversation_context: updatedContext,
+            agent_states: agentStates,
+            active_workflows: activeWorkflows.map(w => ({ id: w.id, status: w.status, progress: w.progress }))
+          }
+        },
+        execute: async (actionData) => {
+          // Store the conversation in memory
+          await coreServicesClient.storeConversation(
+            `User: ${actionData.message}`,
+            { 
+              orchestrator_mode: actionData.context.orchestrator_mode,
+              timestamp: new Date().toISOString(),
+              session_id: actionData.session_id,
+              context: actionData.context.conversation_context
+            }
+          );
+
+          // Send to chat service with enhanced context
+          const response = await chatService.sendMessage({
+            message: actionData.message,
+            workflow_mode: actionData.context.orchestrator_mode,
+            research_mode: 'knowledge',
+            session_id: actionData.session_id,
+            context: actionData.context.conversation_context
+          });
+
+          // Process orchestrator response
+          await processOrchestratorResponse(response, actionData.context.conversation_context);
         }
-      );
-
-      // Send to chat service with enhanced context
-      const response = await chatService.sendMessage({
-        message: userMessage,
-        workflow_mode: orchestratorMode,
-        research_mode: 'knowledge',
-        session_id: sessionId,
-        context: updatedContext
       });
-
-      // Process orchestrator response
-      await processOrchestratorResponse(response, updatedContext);
-
+      
+      // Execute the next action in queue (one-action-at-a-time)
+      await executeNextAction();
+      
     } catch (error) {
       console.error('Error sending message:', error);
       addMessage({
@@ -370,10 +433,8 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
         content: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
         metadata: { action_type: 'error' }
       });
-    } finally {
-      setIsProcessing(false);
     }
-  };
+  }, [input, isProcessing, isWaitingForConfirmation, conversationContext, sessionId, orchestratorMode, agentStates, activeWorkflows, addMessage, queueAction, executeNextAction, analyzeUserIntent, processOrchestratorResponse]);
 
   // Analyze user intent and update conversation context
   const analyzeUserIntent = async (message: string, currentContext: ConversationContext): Promise<ConversationContext> => {
@@ -653,7 +714,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                         <div className="flex gap-2 ml-4">
                           <Button
                             size="sm"
-                            onClick={() => handleConfirmation(confirmation.id, true)}
+                            onClick={() => handleConfirmationLocal(confirmation.id, true)}
                             className="bg-green-600 hover:bg-green-700"
                           >
                             Yes
@@ -661,7 +722,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleConfirmation(confirmation.id, false)}
+                            onClick={() => handleConfirmationLocal(confirmation.id, false)}
                           >
                             No
                           </Button>
