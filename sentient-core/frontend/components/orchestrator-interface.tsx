@@ -378,8 +378,25 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
     });
 
     try {
-      // Analyze user intent and update conversation context
-      const updatedContext = await analyzeUserIntent(userMessage, conversationContext);
+      // Initialize conversation flow if needed
+      if (!conversationFlowManager.getCurrentFlow()) {
+        const flowType = userMessage.toLowerCase().includes('create') || userMessage.toLowerCase().includes('build') 
+          ? 'development_project' : 'research_task';
+        conversationFlowManager.initializeFlow(flowType, { user_message: userMessage });
+      }
+
+      // Process message through conversation processor
+      const processedResponse = await conversationProcessor.processMessage(userMessage, {
+        session_id: sessionId,
+        orchestrator_mode: orchestratorMode,
+        conversation_context: conversationContext,
+        agent_states: agentStates,
+        active_workflows: activeWorkflows
+      });
+
+      // Update conversation flow based on processed response
+      const flowAnalysis = conversationFlowManager.analyzeMessage(userMessage, conversationContext);
+      const updatedContext = conversationFlowManager.updateContext(conversationContext, flowAnalysis);
       
       // Queue the message processing action
       await queueAction({
@@ -389,6 +406,8 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
         data: {
           message: userMessage,
           session_id: sessionId,
+          processed_response: processedResponse,
+          flow_analysis: flowAnalysis,
           context: {
             orchestrator_mode: orchestratorMode,
             conversation_context: updatedContext,
@@ -397,14 +416,16 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
           }
         },
         execute: async (actionData) => {
-          // Store the conversation in memory
-          await coreServicesClient.storeConversation(
+          // Store the conversation in memory with enhanced context
+          await conversationProcessor.storeConversationMemory(
+            actionData.session_id,
             `User: ${actionData.message}`,
             { 
               orchestrator_mode: actionData.context.orchestrator_mode,
               timestamp: new Date().toISOString(),
               session_id: actionData.session_id,
-              context: actionData.context.conversation_context
+              context: actionData.context.conversation_context,
+              flow_analysis: actionData.flow_analysis
             }
           );
 
@@ -414,11 +435,12 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
             workflow_mode: actionData.context.orchestrator_mode,
             research_mode: 'knowledge',
             session_id: actionData.session_id,
-            context: actionData.context.conversation_context
+            context: actionData.context.conversation_context,
+            enhanced_context: actionData.processed_response.enhanced_context
           });
 
-          // Process orchestrator response
-          await processOrchestratorResponse(response, actionData.context.conversation_context);
+          // Process orchestrator response with flow management
+          await processOrchestratorResponseEnhanced(response, actionData.context.conversation_context, actionData.flow_analysis);
         }
       });
       
@@ -433,7 +455,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
         metadata: { action_type: 'error' }
       });
     }
-  }, [input, isProcessing, isWaitingForConfirmation, conversationContext, sessionId, orchestratorMode, agentStates, activeWorkflows, addMessage, queueAction, executeNextAction, analyzeUserIntent, processOrchestratorResponse]);
+  }, [input, isProcessing, isWaitingForConfirmation, conversationContext, sessionId, orchestratorMode, agentStates, activeWorkflows, addMessage, queueAction, executeNextAction]);
 
   // Analyze user intent and update conversation context
   const analyzeUserIntent = async (message: string, currentContext: ConversationContext): Promise<ConversationContext> => {
@@ -471,32 +493,64 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
     };
   };
 
-  // Process orchestrator response with intelligent flow
-  const processOrchestratorResponse = async (response: any, context: ConversationContext) => {
-    // Add orchestrator response
+  // Enhanced process orchestrator response with flow management
+  const processOrchestratorResponseEnhanced = async (response: any, context: ConversationContext, flowAnalysis: any) => {
+    // Process response through conversation processor
+    const enhancedResponse = await conversationProcessor.enhanceResponse(
+      response.content || response.response || 'I understand your request. Let me help you with that.',
+      {
+        session_id: sessionId,
+        orchestrator_mode: orchestratorMode,
+        conversation_context: context,
+        flow_analysis: flowAnalysis
+      }
+    );
+
+    // Add orchestrator response with enhanced content
     addMessage({
       type: 'orchestrator',
-      content: response.content || response.response || 'I understand your request. Let me help you with that.',
-      metadata: { action_type: 'response' }
+      content: enhancedResponse.content,
+      metadata: { 
+        action_type: 'response',
+        confidence: enhancedResponse.confidence,
+        suggestions: enhancedResponse.suggestions
+      }
     });
 
-    // Store orchestrator response
-    await coreServicesClient.storeConversation(
-      `Orchestrator: ${response.content || response.response}`,
+    // Store orchestrator response with enhanced context
+    await conversationProcessor.storeConversationMemory(
+      sessionId,
+      `Orchestrator: ${enhancedResponse.content}`,
       { 
         orchestrator_mode: orchestratorMode,
         timestamp: new Date().toISOString(),
         session_id: sessionId,
-        context
+        context,
+        flow_analysis: flowAnalysis,
+        enhanced_response: enhancedResponse
       }
     );
 
-    // Handle conversation flow based on context
-    if (context.requirements_gathered && !context.research_needed && context.current_focus === 'requirements_gathering') {
-      // Transition to planning
-      const confirmationId = `confirm_${Date.now()}`;
-      setPendingConfirmations(prev => [...prev, {
-        id: confirmationId,
+    // Check for flow transitions
+    const currentFlow = conversationFlowManager.getCurrentFlow();
+    if (currentFlow) {
+      const possibleTransitions = conversationFlowManager.getPossibleTransitions(currentFlow.current_phase);
+      
+      for (const transition of possibleTransitions) {
+        if (transition.condition(context, flowAnalysis)) {
+          // Execute transition
+          const newPhase = conversationFlowManager.executeTransition(transition.to_phase, {
+            context,
+            flow_analysis: flowAnalysis,
+            response: enhancedResponse
+          });
+          
+          // Handle specific transitions
+          if (transition.to_phase === 'research_planning' && !context.research_needed) {
+            // Transition to planning
+            const confirmationId = `confirm_${Date.now()}`;
+            addConfirmation({
+              id: confirmationId,
         message: 'I have gathered sufficient information about your requirements. Should I proceed to create a detailed plan and specifications?',
         action: 'transition_to_planning',
         metadata: { context },
