@@ -42,13 +42,10 @@ export interface MemoryItem {
 }
 
 export interface AgentState {
-  agent_id: string;
-  status: 'idle' | 'active' | 'busy' | 'error' | 'offline';
+  status: 'active' | 'busy' | 'idle' | 'error';
   current_task?: string;
   last_activity?: string;
-  metadata: Record<string, any>;
-  performance_metrics: Record<string, any>;
-  error_info?: string;
+  error_message?: string;
 }
 
 export interface WorkflowState {
@@ -79,7 +76,9 @@ export interface ServiceHealth {
   state_service: boolean;
   search_service: boolean;
   vector_service: boolean;
-  timestamp: string;
+  llm_service?: boolean;
+  overall_status: 'healthy' | 'degraded' | 'down';
+  timestamp?: string;
   state_performance?: Record<string, any>;
   memory_stats?: Record<string, any>;
 }

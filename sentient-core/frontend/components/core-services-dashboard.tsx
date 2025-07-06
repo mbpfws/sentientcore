@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Tabs } from './ui/tabs';
-import { coreServicesClient, AgentState, WorkflowState, MemoryItem, SearchResult, ServiceHealth } from '../lib/api';
+import { coreServicesClient, AgentState, WorkflowState, MemoryItem, SearchResult, ServiceHealth } from '../lib/api/core-services';
 
 interface CoreServicesDashboardProps {
   className?: string;
@@ -371,27 +371,14 @@ function StateMonitor({ agentStates }: { agentStates: Record<string, AgentState>
             <p className="text-sm text-gray-600 mb-2">Task: {state.current_task}</p>
           )}
           
-          {state.error_info && (
-            <p className="text-sm text-red-600 mb-2">Error: {state.error_info}</p>
+          {state.error_message && (
+            <p className="text-sm text-red-600 mb-2">Error: {state.error_message}</p>
           )}
           
           {state.last_activity && (
             <p className="text-xs text-gray-500">
               Last activity: {new Date(state.last_activity).toLocaleString()}
             </p>
-          )}
-          
-          {Object.keys(state.performance_metrics).length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <p className="text-xs font-medium text-gray-700 mb-2">Performance Metrics:</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {Object.entries(state.performance_metrics).map(([key, value]) => (
-                  <div key={key}>
-                    <span className="text-gray-500">{key}:</span> {String(value)}
-                  </div>
-                ))}
-              </div>
-            </div>
           )}
         </div>
       ))}

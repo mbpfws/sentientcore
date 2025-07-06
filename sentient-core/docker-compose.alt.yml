@@ -1,0 +1,51 @@
+services:
+  # Backend API service with alternative Dockerfile
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.alt
+      args:
+        - PIP_DEFAULT_TIMEOUT=100
+    container_name: sentient-core-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite:///./memory_management.db
+      - VECTOR_DB_PATH=./memory_vectors
+    volumes:
+      - ./.env:/app/.env
+      - ./memory_management.db:/app/memory_management.db
+      - ./memory_vectors:/app/memory_vectors
+    restart: unless-stopped
+    networks:
+      - sentient-network
+
+  # Streamlit UI service with alternative Dockerfile
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.alt
+      args:
+        - PIP_DEFAULT_TIMEOUT=100
+    container_name: sentient-core-streamlit
+    command: streamlit run app/main.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite:///./memory_management.db
+      - VECTOR_DB_PATH=./memory_vectors
+    volumes:
+      - ./.env:/app/.env
+      - ./memory_management.db:/app/memory_management.db
+      - ./memory_vectors:/app/memory_vectors
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - sentient-network
+
+networks:
+  sentient-network:
+    driver: bridge 

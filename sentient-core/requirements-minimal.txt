@@ -1,0 +1,22 @@
+# Core web framework
+fastapi
+uvicorn[standard]
+
+# Data validation
+pydantic
+
+# Environment management
+python-dotenv
+
+# Core AI frameworks (minimal set)
+langchain
+langgraph
+
+# LLM providers
+groq
+google-generativeai
+
+# Basic utilities
+numpy
+requests
+httpx 
