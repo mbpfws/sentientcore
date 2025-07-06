@@ -1,21 +1,15 @@
-from fastapi import APIRouter, HTTPException, Request, Body, Form, File, UploadFile
-from fastapi.responses import FileResponse
-from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
-import os
-import sys
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, HTTPException, Form, File, UploadFile
+from fastapi.responses import FileResponse
 import time
+import os
 import glob
-
-# Ensure project root is in path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-from core.models import AppState, Message, LogEntry
-from core.graphs.sentient_workflow_graph import get_sentient_workflow_app, load_session_if_exists
-from core.services.session_persistence_service import SessionPersistenceService
 import uuid
+from core.models import AppState, Message
+from core.services.session_persistence_service import get_session_persistence_service
+from core.config import ROOT_DIR
+from core.graphs.sentient_workflow_graph import get_sentient_workflow_app
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -33,7 +27,37 @@ class MessageResponse(BaseModel):
     content: str
     sender: str
     created_at: str
-    session_id: Optional[str] = None  # Build 2: Include session ID in response
+    session_id: Optional[str] = None
+    message_type: Optional[str] = "text"  # text, confirmation, artifact
+    metadata: Optional[Dict[str, Any]] = None
+
+class ConversationContext(BaseModel):
+    """Model for conversation context tracking"""
+    current_focus: str = "general_inquiry"  # general_inquiry, requirements_gathering, research, planning, development
+    user_intent: str = "unknown"  # development, research, planning, general_inquiry
+    requirements_gathered: bool = False
+    research_needed: bool = False
+    project_type: Optional[str] = None
+    last_updated: str = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+class PendingConfirmation(BaseModel):
+    """Model for pending user confirmations"""
+    confirmation_id: str
+    message: str
+    action_type: str  # start_research, transition_planning, create_workflow
+    action_data: Dict[str, Any]
+    created_at: str = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+class ConfirmationRequest(BaseModel):
+    """Request model for confirmation responses"""
+    confirmation_id: str
+    confirmed: bool
+    session_id: Optional[str] = None
+
+class ContextUpdateRequest(BaseModel):
+    """Request model for updating conversation context"""
+    session_id: str
+    context: ConversationContext  # Build 2: Include session ID in response
 
 class ApiResponse(BaseModel):
     """Generic API response wrapper"""
@@ -55,7 +79,10 @@ async def _process_message_internal(
         session_id = str(uuid.uuid4())
     
     # Load existing session or create new app state
-    app_state = await load_session_if_exists(session_id)
+    session_service = get_session_persistence_service()
+    app_state = await session_service.load_session(session_id)
+    if app_state is None:
+        app_state = AppState(session_id=session_id)
     
     # Add research mode prefix if specified
     message_text = message
@@ -101,13 +128,73 @@ async def _process_message_internal(
     assistant_messages = [msg for msg in result_state.messages if msg.sender == "assistant"]
     if assistant_messages:
         last_message = assistant_messages[-1]
+        assistant_content = last_message.content
+        message_type = "text"
+        metadata = {}
+        
+        # Check for special message types in content
+        if "[CONFIRMATION_REQUIRED]" in assistant_content:
+            message_type = "confirmation"
+            # Generate confirmation ID
+            confirmation_id = str(uuid.uuid4())
+            metadata = {
+                "requires_confirmation": True,
+                "confirmation_id": confirmation_id
+            }
+            # Store pending confirmation in session
+            if not hasattr(result_state, 'pending_confirmations'):
+                result_state.pending_confirmations = []
+            
+            # Extract action details from content (simplified)
+            action_type = "general"
+            if "research" in assistant_content.lower():
+                action_type = "start_research"
+            elif "planning" in assistant_content.lower():
+                action_type = "transition_planning"
+            elif "development" in assistant_content.lower():
+                action_type = "create_workflow"
+            
+            result_state.pending_confirmations.append({
+                "confirmation_id": confirmation_id,
+                "message": assistant_content.replace("[CONFIRMATION_REQUIRED]", "").strip(),
+                "action_type": action_type,
+                "action_data": {},
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            })
+            
+            # Clean the content for display
+            assistant_content = assistant_content.replace("[CONFIRMATION_REQUIRED]", "").strip()
+        
+        elif "[ARTIFACT]" in assistant_content:
+            message_type = "artifact"
+            # Extract artifact information
+            if "research_report" in assistant_content.lower():
+                metadata = {
+                    "artifact_type": "research_report",
+                    "download_url": "/chat/download/research/latest_research_report.md"
+                }
+            elif "plan" in assistant_content.lower():
+                metadata = {
+                    "artifact_type": "plan",
+                    "download_url": "/chat/download/research/latest_plan.md"
+                }
+            
+            # Clean the content for display
+            assistant_content = assistant_content.replace("[ARTIFACT]", "").strip()
+        
         response_message = MessageResponse(
             id=f"msg_{int(time.time() * 1000)}",
-            content=last_message.content,
+            content=assistant_content,
             sender="assistant",
             created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            session_id=session_id  # Build 2: Include session ID
+            session_id=session_id,
+            message_type=message_type,
+            metadata=metadata if metadata else None
         )
+        
+        # Save updated session with pending confirmations
+        if session_id:
+            await session_service.save_session(session_id, result_state)
     else:
         # Fallback response if no assistant message found
         response_message = MessageResponse(
@@ -187,16 +274,18 @@ async def get_chat_history(
         # Build 2: Load session history if session_id provided
         if session_id:
             try:
-                app_state = await load_session_if_exists(session_id)
+                session_service = get_session_persistence_service()
+                app_state = await session_service.load_session(session_id)
                 # Convert AppState messages to MessageResponse format
-                for msg in app_state.messages:
-                    messages.append(MessageResponse(
-                        id=f"msg_{int(time.time() * 1000)}_{len(messages)}",
-                        content=msg.content,
-                        sender=msg.sender,
-                        created_at=msg.created_at or time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        session_id=session_id
-                    ))
+                if app_state:
+                    for msg in app_state.messages:
+                        messages.append(MessageResponse(
+                            id=f"msg_{int(time.time() * 1000)}_{len(messages)}",
+                            content=msg.content,
+                            sender=msg.sender,
+                            created_at=msg.created_at or time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                            session_id=session_id
+                        ))
             except Exception as e:
                 print(f"Warning: Failed to load session history for {session_id}: {e}")
         
@@ -216,7 +305,7 @@ async def download_research_artifact(filename: str):
     """Download research artifacts (markdown or PDF files) from long-term memory"""
     try:
         # Define the research documents directory
-        research_dir = os.path.join(project_root, "memory", "layer1_research_docs")
+        research_dir = os.path.join(ROOT_DIR, "sentient-core", "memory", "layer1_research_docs")
         
         # Security check: ensure filename doesn't contain path traversal
         if ".." in filename or "/" in filename or "\\" in filename:
@@ -250,7 +339,7 @@ async def download_research_artifact(filename: str):
 async def list_research_artifacts():
     """List available research artifacts in long-term memory"""
     try:
-        research_dir = os.path.join(project_root, "memory", "layer1_research_docs")
+        research_dir = os.path.join(ROOT_DIR, "sentient-core", "memory", "layer1_research_docs")
         
         # Create directory if it doesn't exist
         os.makedirs(research_dir, exist_ok=True)
@@ -351,3 +440,169 @@ async def get_session_stats(session_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting session stats: {str(e)}")
+
+# Enhanced conversation context and confirmation endpoints
+@router.post("/confirmation")
+async def handle_confirmation(confirmation_request: ConfirmationRequest):
+    """Handle user confirmation responses"""
+    try:
+        session_id = confirmation_request.session_id
+        confirmation_id = confirmation_request.confirmation_id
+        confirmed = confirmation_request.confirmed
+        
+        # Load session to get pending confirmations
+        if session_id:
+            session_service = get_session_persistence_service()
+            app_state = await session_service.load_session(session_id)
+            if app_state is None:
+                app_state = AppState(session_id=session_id)
+        else:
+            app_state = AppState()
+        
+        # Find the pending confirmation
+        pending_confirmation = None
+        for conf in getattr(app_state, 'pending_confirmations', []):
+            if conf.get('confirmation_id') == confirmation_id:
+                pending_confirmation = conf
+                break
+        
+        if not pending_confirmation:
+            raise HTTPException(status_code=404, detail="Confirmation not found")
+        
+        response_data = {
+            "confirmation_id": confirmation_id,
+            "confirmed": confirmed,
+            "action_executed": False,
+            "message": ""
+        }
+        
+        if confirmed:
+            # Execute the confirmed action
+            action_type = pending_confirmation.get('action_type')
+            action_data = pending_confirmation.get('action_data', {})
+            
+            if action_type == "start_research":
+                # Trigger research workflow
+                response_data["action_executed"] = True
+                response_data["message"] = "Research workflow initiated successfully."
+                
+            elif action_type == "transition_planning":
+                # Transition to planning phase
+                response_data["action_executed"] = True
+                response_data["message"] = "Transitioning to planning phase."
+                
+            elif action_type == "create_workflow":
+                # Create development workflow
+                response_data["action_executed"] = True
+                response_data["message"] = "Development workflow created successfully."
+        else:
+            response_data["message"] = "Action cancelled by user."
+        
+        # Remove the confirmation from pending list
+        if hasattr(app_state, 'pending_confirmations'):
+            app_state.pending_confirmations = [
+                conf for conf in app_state.pending_confirmations 
+                if conf.get('confirmation_id') != confirmation_id
+            ]
+        
+        # Save updated session
+        if session_id:
+            session_service = get_session_persistence_service()
+            await session_service.save_session(session_id, app_state)
+        
+        return ApiResponse(data=response_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error handling confirmation: {str(e)}")
+
+@router.get("/sessions/{session_id}/context")
+async def get_conversation_context(session_id: str):
+    """Get conversation context for a session"""
+    try:
+        # Security check
+        if ".." in session_id or "/" in session_id or "\\" in session_id:
+            raise HTTPException(status_code=400, detail="Invalid session ID")
+        
+        # Load session
+        session_service = get_session_persistence_service()
+        app_state = await session_service.load_session(session_id)
+        if app_state is None:
+            app_state = AppState(session_id=session_id)
+        
+        # Get conversation context from session or create default
+        context = getattr(app_state, 'conversation_context', {
+            "current_focus": "general_inquiry",
+            "user_intent": "unknown",
+            "requirements_gathered": False,
+            "research_needed": False,
+            "project_type": None,
+            "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        })
+        
+        return ApiResponse(data=context)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting conversation context: {str(e)}")
+
+@router.put("/sessions/{session_id}/context")
+async def update_conversation_context(session_id: str, context_update: ContextUpdateRequest):
+    """Update conversation context for a session"""
+    try:
+        # Security check
+        if ".." in session_id or "/" in session_id or "\\" in session_id:
+            raise HTTPException(status_code=400, detail="Invalid session ID")
+        
+        # Load session
+        session_service = get_session_persistence_service()
+        app_state = await session_service.load_session(session_id)
+        if app_state is None:
+            app_state = AppState(session_id=session_id)
+        
+        # Update conversation context
+        context_dict = context_update.context.dict()
+        context_dict["last_updated"] = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        app_state.conversation_context = context_dict
+        
+        # Save updated session
+        await session_service.save_session(session_id, app_state)
+        
+        return ApiResponse(data={
+            "message": "Conversation context updated successfully",
+            "context": context_dict
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating conversation context: {str(e)}")
+
+@router.get("/sessions/{session_id}/confirmations")
+async def get_pending_confirmations(session_id: str):
+    """Get pending confirmations for a session"""
+    try:
+        # Security check
+        if ".." in session_id or "/" in session_id or "\\" in session_id:
+            raise HTTPException(status_code=400, detail="Invalid session ID")
+        
+        # Load session
+        session_service = get_session_persistence_service()
+        app_state = await session_service.load_session(session_id)
+        if app_state is None:
+            app_state = AppState(session_id=session_id)
+        
+        # Get pending confirmations
+        confirmations = getattr(app_state, 'pending_confirmations', [])
+        
+        return ApiResponse(data={
+            "confirmations": confirmations,
+            "total_count": len(confirmations)
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting pending confirmations: {str(e)}")

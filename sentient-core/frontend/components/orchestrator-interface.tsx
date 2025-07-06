@@ -1,11 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
+import { Badge } from './ui/badge';
+import { Separator } from './ui/separator';
+import { ScrollArea } from './ui/scroll-area';
+import { Alert, AlertDescription } from './ui/alert';
 import { coreServicesClient, AgentState, WorkflowState } from '../lib/api';
 import { ChatService } from '../lib/api/chat-service';
+import { ResearchService } from '../lib/api/research-service';
+import { CheckCircle, Clock, AlertCircle, Download, FileText, Users, Brain, Search, Settings } from 'lucide-react';
 
 interface OrchestratorInterfaceProps {
   className?: string;
@@ -13,7 +19,7 @@ interface OrchestratorInterfaceProps {
 
 interface OrchestratorMessage {
   id: string;
-  type: 'user' | 'orchestrator' | 'agent' | 'system';
+  type: 'user' | 'orchestrator' | 'agent' | 'system' | 'confirmation' | 'artifact';
   content: string;
   timestamp: Date;
   metadata?: {
@@ -21,6 +27,10 @@ interface OrchestratorMessage {
     workflow_id?: string;
     action_type?: string;
     status?: string;
+    requires_confirmation?: boolean;
+    confirmation_id?: string;
+    artifact_type?: 'research' | 'plan' | 'specification';
+    download_url?: string;
   };
 }
 
@@ -32,6 +42,30 @@ interface ActiveWorkflow {
   current_step?: string;
   agents_involved: string[];
   started_at?: Date;
+  artifacts?: Array<{
+    id: string;
+    type: 'research' | 'plan' | 'specification';
+    title: string;
+    url: string;
+    created_at: Date;
+  }>;
+}
+
+interface PendingConfirmation {
+  id: string;
+  message: string;
+  action: string;
+  metadata?: any;
+  timestamp: Date;
+}
+
+interface ConversationContext {
+  user_intent: string;
+  requirements_gathered: boolean;
+  research_needed: boolean;
+  planning_phase: boolean;
+  current_focus: string;
+  artifacts_generated: string[];
 }
 
 export function OrchestratorInterface({ className }: OrchestratorInterfaceProps) {
@@ -44,20 +78,83 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
   const [orchestratorMode, setOrchestratorMode] = useState<'intelligent' | 'multi_agent' | 'legacy'>('intelligent');
   const [isConnected, setIsConnected] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [pendingConfirmations, setPendingConfirmations] = useState<PendingConfirmation[]>([]);
+  const [conversationContext, setConversationContext] = useState<ConversationContext>({
+    user_intent: '',
+    requirements_gathered: false,
+    research_needed: false,
+    planning_phase: false,
+    current_focus: 'requirements_gathering',
+    artifacts_generated: []
+  });
+  const [sessionId, setSessionId] = useState<string>('');
+  const [isWaitingForConfirmation, setIsWaitingForConfirmation] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatService = new ChatService();
+  const researchService = new ResearchService();
 
   // Initialize orchestrator connection
   const initializeOrchestrator = useCallback(async () => {
+    setIsConnected(false);
+    setMessages([]);
+    setActiveWorkflows([]);
+    setPendingConfirmations([]);
+    setConversationContext({
+      user_intent: '',
+      requirements_gathered: false,
+      research_needed: false,
+      planning_phase: false,
+      current_focus: 'requirements_gathering',
+      artifacts_generated: []
+    });
+    
     try {
       const response = await coreServicesClient.initializeServices();
       if (response.success) {
         setIsConnected(true);
-        addSystemMessage('Orchestrator initialized successfully');
+        
+        // Load agent states
         await loadAgentStates();
+        
+        // Load existing conversation context if session exists
+        if (sessionId) {
+          try {
+            const existingContext = await coreServicesClient.getConversationContext(sessionId);
+            setConversationContext(existingContext);
+            
+            // Load pending confirmations
+            const confirmationsResult = await coreServicesClient.getPendingConfirmations(sessionId);
+            if (confirmationsResult.confirmations.length > 0) {
+              setPendingConfirmations(confirmationsResult.confirmations.map(conf => ({
+                id: conf.confirmation_id,
+                message: conf.message,
+                action: conf.action_type,
+                metadata: conf.metadata,
+                timestamp: new Date(conf.timestamp)
+              })));
+              setIsWaitingForConfirmation(true);
+            }
+          } catch (error) {
+            console.warn('Failed to load existing session data:', error);
+          }
+        }
+        
+        // Add welcome message
+        addMessage({
+          type: 'orchestrator',
+          content: `🤖 AI Orchestrator initialized in ${orchestratorMode} mode. How can I help you today?`,
+          metadata: { action_type: 'initialization' }
+        });
       }
     } catch (error) {
-      addSystemMessage(`Failed to initialize orchestrator: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Failed to initialize orchestrator:', error);
+      addMessage({
+        type: 'system',
+        content: `❌ Failed to connect to orchestrator: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        metadata: { action_type: 'error' }
+      });
     }
-  }, []);
+  }, [sessionId, orchestratorMode, addMessage, loadAgentStates]);
 
   // Load agent states
   const loadAgentStates = useCallback(async () => {
@@ -71,15 +168,120 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
     }
   }, []);
 
+  // Scroll to bottom of messages
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  // Add message to conversation with enhanced features
+  const addMessage = useCallback((message: Omit<OrchestratorMessage, 'id' | 'timestamp'>) => {
+    const newMessage: OrchestratorMessage = {
+      ...message,
+      id: Date.now().toString(),
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, newMessage]);
+    
+    // Store in session memory
+    if (sessionId) {
+      coreServicesClient.storeMemory({
+        layer: 'session',
+        type: 'conversation',
+        key: `message_${newMessage.id}`,
+        data: newMessage,
+        metadata: { session_id: sessionId, workflow_mode: orchestratorMode }
+      }).catch(console.error);
+    }
+  }, [sessionId, orchestratorMode]);
+
+  // Handle confirmation responses
+  const handleConfirmation = useCallback(async (confirmationId: string, approved: boolean) => {
+    const confirmation = pendingConfirmations.find(c => c.id === confirmationId);
+    if (!confirmation) return;
+
+    setIsWaitingForConfirmation(false);
+    setPendingConfirmations(prev => prev.filter(c => c.id !== confirmationId));
+
+    try {
+      // Send confirmation to backend API
+      const result = await coreServicesClient.handleConfirmation({
+        confirmation_id: confirmationId,
+        confirmed: approved,
+        session_id: sessionId || `session_${Date.now()}`
+      });
+
+      if (approved) {
+        addMessage({
+          type: 'system',
+          content: `✅ Confirmed: ${confirmation.action} - ${result.message}`,
+          metadata: { confirmation_id: confirmationId, status: 'approved', action_executed: result.action_executed }
+        });
+
+        // Execute the confirmed action locally if needed
+        await executeConfirmedAction(confirmation);
+      } else {
+        addMessage({
+          type: 'system',
+          content: `❌ Declined: ${confirmation.action}`,
+          metadata: { confirmation_id: confirmationId, status: 'declined' }
+        });
+      }
+    } catch (error) {
+      console.error('Error handling confirmation:', error);
+      addMessage({
+        type: 'system',
+        content: `❌ Error processing confirmation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        metadata: { confirmation_id: confirmationId, status: 'error' }
+      });
+    }
+  }, [pendingConfirmations, addMessage, coreServicesClient, sessionId]);
+
+  // Execute confirmed actions
+  const executeConfirmedAction = useCallback(async (confirmation: PendingConfirmation) => {
+    try {
+      switch (confirmation.action) {
+        case 'start_research':
+          const researchResult = await researchService.startResearch(confirmation.metadata);
+          addMessage({
+            type: 'system',
+            content: `🔍 Research started: ${confirmation.metadata.query}`,
+            metadata: { 
+              action_type: 'research_started',
+              workflow_id: researchResult.data?.workflow_id 
+            }
+          });
+          break;
+        case 'transition_to_planning':
+          setConversationContext(prev => ({ ...prev, planning_phase: true, current_focus: 'planning' }));
+          addMessage({
+            type: 'orchestrator',
+            content: '🎯 Transitioning to planning phase. I will now coordinate with the architect planner to create detailed specifications.',
+            metadata: { action_type: 'phase_transition' }
+          });
+          break;
+        default:
+          console.warn('Unknown confirmation action:', confirmation.action);
+      }
+    } catch (error) {
+      console.error('Error executing confirmed action:', error);
+      addMessage({
+        type: 'system',
+        content: `❌ Error executing action: ${error}`,
+        metadata: { action_type: 'error' }
+      });
+    }
+  }, [researchService, addMessage, setConversationContext]);
+
   // Add system message
   const addSystemMessage = (content: string) => {
-    const message: OrchestratorMessage = {
-      id: Date.now().toString(),
+    addMessage({
       type: 'system',
-      content,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, message]);
+      content
+    });
   };
 
   // Add orchestrator message
@@ -106,91 +308,206 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
     setMessages(prev => [...prev, message]);
   };
 
-  // Send message to orchestrator
+  // Enhanced send message with intelligent conversation flow
   const sendMessage = async () => {
-    if (!inputMessage.trim() || isProcessing) return;
+    if (!inputMessage.trim() || isProcessing || isWaitingForConfirmation) return;
 
-    const userMessage: OrchestratorMessage = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: inputMessage,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+    const userMessage = inputMessage.trim();
     setInputMessage('');
     setIsProcessing(true);
 
+    // Add user message
+    addMessage({
+      type: 'user',
+      content: userMessage,
+    });
+
     try {
+      // Initialize session if not exists
+      if (!sessionId) {
+        const newSessionId = `session_${Date.now()}`;
+        setSessionId(newSessionId);
+      }
+
+      // Analyze user intent and update conversation context
+      const updatedContext = await analyzeUserIntent(userMessage, conversationContext);
+      setConversationContext(updatedContext);
+
+      // Update conversation context in backend
+      try {
+        await coreServicesClient.updateConversationContext(sessionId || `session_${Date.now()}`, updatedContext);
+      } catch (error) {
+        console.warn('Failed to update conversation context:', error);
+      }
+
       // Store the conversation in memory
       await coreServicesClient.storeConversation(
-        `User: ${inputMessage}`,
+        `User: ${userMessage}`,
         { 
           orchestrator_mode: orchestratorMode,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          session_id: sessionId,
+          context: updatedContext
         }
       );
 
-      // Send to chat service with orchestrator mode
-      const response = await ChatService.sendMessage({
-        message: inputMessage,
+      // Send to chat service with enhanced context
+      const response = await chatService.sendMessage({
+        message: userMessage,
         workflow_mode: orchestratorMode,
-        research_mode: 'knowledge'
+        research_mode: 'knowledge',
+        session_id: sessionId,
+        context: updatedContext
       });
 
-      if (response) {
-        addOrchestratorMessage(response.content);
-        
-        // Store orchestrator response
-        await coreServicesClient.storeConversation(
-          `Orchestrator: ${response.content}`,
-          { 
-            orchestrator_mode: orchestratorMode,
-            timestamp: new Date().toISOString()
-          }
-        );
+      // Process orchestrator response
+      await processOrchestratorResponse(response, updatedContext);
 
-        // Simulate workflow creation if this looks like a complex task
-        if (inputMessage.toLowerCase().includes('create') || 
-            inputMessage.toLowerCase().includes('build') ||
-            inputMessage.toLowerCase().includes('develop')) {
-          
-          const workflowId = `workflow_${Date.now()}`;
-          const newWorkflow: ActiveWorkflow = {
-            id: workflowId,
-            name: `Task: ${inputMessage.substring(0, 50)}...`,
-            status: 'running',
-            progress: 0,
-            current_step: 'Planning',
-            agents_involved: ['research_agent', 'architect_agent'],
-            started_at: new Date()
-          };
-          
-          setActiveWorkflows(prev => [...prev, newWorkflow]);
-          addSystemMessage(`Created workflow: ${workflowId}`);
-          
-          // Simulate agent activation
-          setTimeout(() => {
-            addAgentMessage(
-              'Starting research phase for the requested task',
-              'research_agent',
-              { workflow_id: workflowId, action_type: 'research_start' }
-            );
-          }, 1000);
-          
-          setTimeout(() => {
-            addAgentMessage(
-              'Analyzing requirements and creating architectural plan',
-              'architect_agent',
-              { workflow_id: workflowId, action_type: 'planning_start' }
-            );
-          }, 2000);
-        }
-      }
     } catch (error) {
-      addSystemMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error sending message:', error);
+      addMessage({
+        type: 'system',
+        content: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+        metadata: { action_type: 'error' }
+      });
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Analyze user intent and update conversation context
+  const analyzeUserIntent = async (message: string, currentContext: ConversationContext): Promise<ConversationContext> => {
+    const lowerMessage = message.toLowerCase();
+    
+    // Detect user intent
+    let newIntent = currentContext.user_intent;
+    if (!newIntent) {
+      if (lowerMessage.includes('create') || lowerMessage.includes('build') || lowerMessage.includes('develop')) {
+        newIntent = 'development_project';
+      } else if (lowerMessage.includes('research') || lowerMessage.includes('analyze')) {
+        newIntent = 'research_task';
+      } else if (lowerMessage.includes('plan') || lowerMessage.includes('design')) {
+        newIntent = 'planning_task';
+      } else {
+        newIntent = 'general_inquiry';
+      }
+    }
+
+    // Determine if requirements are gathered
+    const requirementsGathered = currentContext.requirements_gathered || 
+      (lowerMessage.includes('that\'s all') || lowerMessage.includes('complete') || lowerMessage.includes('enough'));
+
+    // Determine if research is needed
+    const researchNeeded = currentContext.research_needed || 
+      (newIntent === 'development_project' && requirementsGathered) ||
+      newIntent === 'research_task';
+
+    return {
+      ...currentContext,
+      user_intent: newIntent,
+      requirements_gathered: requirementsGathered,
+      research_needed: researchNeeded,
+      current_focus: requirementsGathered ? (researchNeeded ? 'research' : 'planning') : 'requirements_gathering'
+    };
+  };
+
+  // Process orchestrator response with intelligent flow
+  const processOrchestratorResponse = async (response: any, context: ConversationContext) => {
+    // Add orchestrator response
+    addMessage({
+      type: 'orchestrator',
+      content: response.content || response.response || 'I understand your request. Let me help you with that.',
+      metadata: { action_type: 'response' }
+    });
+
+    // Store orchestrator response
+    await coreServicesClient.storeConversation(
+      `Orchestrator: ${response.content || response.response}`,
+      { 
+        orchestrator_mode: orchestratorMode,
+        timestamp: new Date().toISOString(),
+        session_id: sessionId,
+        context
+      }
+    );
+
+    // Handle conversation flow based on context
+    if (context.requirements_gathered && !context.research_needed && context.current_focus === 'requirements_gathering') {
+      // Transition to planning
+      const confirmationId = `confirm_${Date.now()}`;
+      setPendingConfirmations(prev => [...prev, {
+        id: confirmationId,
+        message: 'I have gathered sufficient information about your requirements. Should I proceed to create a detailed plan and specifications?',
+        action: 'transition_to_planning',
+        metadata: { context },
+        timestamp: new Date()
+      }]);
+      setIsWaitingForConfirmation(true);
+      
+      addMessage({
+        type: 'confirmation',
+        content: 'I have gathered sufficient information about your requirements. Should I proceed to create a detailed plan and specifications?',
+        metadata: { 
+          requires_confirmation: true,
+          confirmation_id: confirmationId
+        }
+      });
+    } else if (context.research_needed && context.current_focus === 'requirements_gathering') {
+      // Suggest research
+      const confirmationId = `confirm_${Date.now()}`;
+      setPendingConfirmations(prev => [...prev, {
+        id: confirmationId,
+        message: 'Based on your requirements, I recommend conducting research to gather more information. Should I start the research process?',
+        action: 'start_research',
+        metadata: {
+          query: context.user_intent,
+          mode: 'deep',
+          workflow_id: sessionId
+        },
+        timestamp: new Date()
+      }]);
+      setIsWaitingForConfirmation(true);
+      
+      addMessage({
+        type: 'confirmation',
+        content: 'Based on your requirements, I recommend conducting research to gather more information. Should I start the research process?',
+        metadata: { 
+          requires_confirmation: true,
+          confirmation_id: confirmationId
+        }
+      });
+    } else if (context.user_intent === 'development_project') {
+      // Create workflow for development projects
+      const workflowId = `workflow_${Date.now()}`;
+      const newWorkflow: ActiveWorkflow = {
+        id: workflowId,
+        name: `Task: ${context.user_intent.substring(0, 50)}...`,
+        status: 'running',
+        progress: 0,
+        current_step: 'Planning',
+        agents_involved: ['research_agent', 'architect_agent'],
+        started_at: new Date()
+      };
+      
+      setActiveWorkflows(prev => [...prev, newWorkflow]);
+      addSystemMessage(`Created workflow: ${workflowId}`);
+      
+      // Simulate agent activation
+      setTimeout(() => {
+        addAgentMessage(
+          'Starting research phase for the requested task',
+          'research_agent',
+          { workflow_id: workflowId, action_type: 'research_start' }
+        );
+      }, 1000);
+      
+      setTimeout(() => {
+        addAgentMessage(
+          'Analyzing requirements and creating architectural plan',
+          'architect_agent',
+          { workflow_id: workflowId, action_type: 'planning_start' }
+        );
+      }, 2000);
     }
   };
 
@@ -275,6 +592,16 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                   <span className="text-sm text-gray-600">
                     {isConnected ? 'Connected' : 'Disconnected'}
                   </span>
+                  {sessionId && (
+                    <Badge variant="outline" className="text-xs ml-2">
+                      Session: {sessionId.slice(-8)}
+                    </Badge>
+                  )}
+                  {conversationContext.current_focus && (
+                    <Badge variant="secondary" className="text-xs">
+                      Focus: {conversationContext.current_focus.replace('_', ' ')}
+                    </Badge>
+                  )}
                 </div>
               </div>
               
@@ -298,66 +625,186 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                 </Button>
               </div>
             </div>
+            
+            {/* Conversation Context Display */}
+            {conversationContext.user_intent && (
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                <div className="text-sm text-blue-800">
+                  <strong>Intent:</strong> {conversationContext.user_intent.replace('_', ' ')}
+                  {conversationContext.requirements_gathered && (
+                    <span className="ml-2 text-green-600">✓ Requirements gathered</span>
+                  )}
+                  {conversationContext.research_needed && (
+                    <span className="ml-2 text-orange-600">🔍 Research needed</span>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Pending Confirmations */}
+            {pendingConfirmations.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {pendingConfirmations.map((confirmation) => (
+                  <Alert key={confirmation.id} className="border-orange-200 bg-orange-50">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">{confirmation.message}</span>
+                        <div className="flex gap-2 ml-4">
+                          <Button
+                            size="sm"
+                            onClick={() => handleConfirmation(confirmation.id, true)}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            Yes
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleConfirmation(confirmation.id, false)}
+                          >
+                            No
+                          </Button>
+                        </div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 ? (
-              <div className="text-center text-gray-500 py-8">
-                <p>Welcome to the AI Orchestrator!</p>
-                <p className="text-sm mt-2">Start by describing what you'd like to build or accomplish.</p>
-              </div>
-            ) : (
-              messages.map((message) => (
-                <div key={message.id} className={`p-3 rounded-lg border ${getMessageTypeColor(message.type)}`}>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium capitalize">
-                        {message.type === 'agent' && message.metadata?.agent_id 
-                          ? message.metadata.agent_id.replace('_', ' ')
-                          : message.type
-                        }
-                      </span>
-                      {message.metadata?.workflow_id && (
-                        <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">
-                          {message.metadata.workflow_id}
+          <ScrollArea className="flex-1 p-4">
+            <div className="space-y-4">
+              {messages.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">
+                  <p>Welcome to the AI Orchestrator!</p>
+                  <p className="text-sm mt-2">Start by describing what you'd like to build or accomplish.</p>
+                </div>
+              ) : (
+                messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${
+                      message.type === 'user' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        message.type === 'user'
+                          ? 'bg-blue-500 text-white'
+                          : message.type === 'orchestrator'
+                          ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                          : message.type === 'agent'
+                          ? 'bg-green-100 text-green-900 border border-green-200'
+                          : message.type === 'confirmation'
+                          ? 'bg-orange-100 text-orange-900 border border-orange-200'
+                          : message.type === 'artifact'
+                          ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                          : 'bg-gray-100 text-gray-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 text-sm font-medium mb-1">
+                        {message.type === 'user' && <Users className="h-4 w-4" />}
+                        {message.type === 'orchestrator' && <Brain className="h-4 w-4" />}
+                        {message.type === 'agent' && <Settings className="h-4 w-4" />}
+                        {message.type === 'confirmation' && <AlertCircle className="h-4 w-4" />}
+                        {message.type === 'artifact' && <FileText className="h-4 w-4" />}
+                        
+                        <span>
+                          {message.type === 'user' ? 'You' : 
+                           message.type === 'orchestrator' ? 'Ultra Orchestrator' :
+                           message.type === 'agent' ? `${message.metadata?.agent_id || 'Agent'}` :
+                           message.type === 'confirmation' ? 'Confirmation Required' :
+                           message.type === 'artifact' ? 'Artifact Generated' :
+                           'System'}
                         </span>
+                      </div>
+                      
+                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      
+                      {/* Artifact download buttons */}
+                      {message.type === 'artifact' && message.metadata?.download_url && (
+                        <div className="mt-2 flex gap-2">
+                          <Button size="sm" variant="outline" className="text-xs">
+                            <Download className="h-3 w-3 mr-1" />
+                            Download PDF
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-xs">
+                            <FileText className="h-3 w-3 mr-1" />
+                            Download Markdown
+                          </Button>
+                        </div>
+                      )}
+                      
+                      <div className="text-xs opacity-70 mt-1 flex items-center justify-between">
+                        <span>{message.timestamp.toLocaleTimeString()}</span>
+                        {message.metadata?.status && (
+                          <Badge variant="outline" className="text-xs">
+                            {message.metadata.status}
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      {message.metadata && (message.metadata.workflow_id || message.metadata.action_type) && (
+                        <div className="text-xs opacity-60 mt-1">
+                          {message.metadata.workflow_id && `Workflow: ${message.metadata.workflow_id.slice(-8)}`}
+                          {message.metadata.action_type && ` | Action: ${message.metadata.action_type}`}
+                        </div>
                       )}
                     </div>
-                    <span className="text-xs text-gray-500">
-                      {message.timestamp.toLocaleTimeString()}
-                    </span>
                   </div>
-                  <p className="text-sm">{message.content}</p>
-                  {message.metadata?.action_type && (
-                    <div className="mt-2">
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        {message.metadata.action_type.replace('_', ' ')}
-                      </span>
+                ))
+              )}
+              
+              {isProcessing && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 rounded-lg p-3 border">
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                      <span className="text-sm text-gray-600">Ultra Orchestrator is thinking...</span>
                     </div>
-                  )}
+                  </div>
                 </div>
-              ))
-            )}
-            
-            {isProcessing && (
-              <div className="flex items-center gap-2 text-gray-500">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-                <span className="text-sm">Orchestrator is thinking...</span>
-              </div>
-            )}
-          </div>
+              )}
+              
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
 
           {/* Input */}
           <div className="p-4 border-t border-gray-200">
+            {isWaitingForConfirmation && (
+              <Alert className="mb-4 border-orange-200 bg-orange-50">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Please respond to the pending confirmation above before sending a new message.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {conversationContext.current_focus && (
+              <div className="mb-2 text-xs text-gray-600">
+                Current focus: {conversationContext.current_focus.replace('_', ' ')}
+              </div>
+            )}
+            
             <div className="flex gap-2">
               <Textarea
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Describe what you'd like to build or accomplish..."
+                placeholder={isWaitingForConfirmation 
+                  ? "Please respond to the confirmation above first..."
+                  : conversationContext.current_focus === 'requirements_gathering'
+                  ? "Describe what you'd like to build or accomplish..."
+                  : conversationContext.current_focus === 'research'
+                  ? "Provide additional research requirements or say 'continue'..."
+                  : "Continue the conversation..."}
                 className="flex-1 min-h-[60px] resize-none"
+                disabled={isWaitingForConfirmation}
                 onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === 'Enter' && !e.shiftKey && !isWaitingForConfirmation) {
                     e.preventDefault();
                     sendMessage();
                   }
@@ -365,12 +812,46 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
               />
               <Button 
                 onClick={sendMessage} 
-                disabled={!inputMessage.trim() || isProcessing}
+                disabled={!inputMessage.trim() || isProcessing || isWaitingForConfirmation}
                 className="self-end"
               >
-                Send
+                {isProcessing ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Sending</span>
+                  </div>
+                ) : (
+                  'Send'
+                )}
               </Button>
             </div>
+            
+            {/* Quick Actions */}
+            {!isWaitingForConfirmation && conversationContext.current_focus === 'requirements_gathering' && (
+              <div className="mt-2 flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    setInputMessage("That's all the requirements I have. Please proceed with the next steps.");
+                  }}
+                  className="text-xs"
+                >
+                  Complete Requirements
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    setInputMessage("I need help defining my requirements. Can you guide me?");
+                  }}
+                  className="text-xs"
+                >
+                  Need Help
+                </Button>
+              </div>
+            )}
+            
             <p className="text-xs text-gray-500 mt-2">
               Press Enter to send, Shift+Enter for new line
             </p>

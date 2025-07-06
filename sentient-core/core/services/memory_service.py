@@ -417,14 +417,104 @@ class StackLayer:
         """Generate unique ID for content"""
         return hashlib.md5(content.encode()).hexdigest()[:16]
 
-class MemoryService:
-    """4-Layer Hierarchical Memory Management Service
+class ProjectRequirementsLayer:
+    """Project Requirements Layer - User requirements, specifications, constraints"""
     
-    Provides comprehensive memory management across four specialized layers:
+    def __init__(self, db_connection, vector_service: VectorService):
+        self.db = db_connection
+        self.vector_service = vector_service
+        self.layer_name = "project_requirements"
+    
+    async def store_user_requirement(self, requirement: str, priority: str,
+                                   category: str, metadata: Dict[str, Any] = None) -> str:
+        """Store user requirement with priority and categorization"""
+        content = f"Requirement: {requirement}\nPriority: {priority}\nCategory: {category}"
+        entry_id = self._generate_id(content)
+        
+        if metadata is None:
+            metadata = {}
+        
+        metadata.update({
+            "requirement": requirement,
+            "priority": priority,
+            "category": category,
+            "type": "user_requirement",
+            "layer": self.layer_name
+        })
+        
+        await self._store_entry(entry_id, content, metadata)
+        
+        doc = Document(
+            id=f"{self.layer_name}_{entry_id}",
+            content=content,
+            metadata=metadata
+        )
+        
+        await self.vector_service.add_document(doc)
+        
+        logger.info(f"Stored user requirement: {entry_id}")
+        return entry_id
+    
+    async def store_specification(self, specification: str, component: str,
+                                details: str, metadata: Dict[str, Any] = None) -> str:
+        """Store technical specification"""
+        content = f"Specification: {specification}\nComponent: {component}\nDetails: {details}"
+        entry_id = self._generate_id(content)
+        
+        if metadata is None:
+            metadata = {}
+        
+        metadata.update({
+            "specification": specification,
+            "component": component,
+            "details": details,
+            "type": "specification",
+            "layer": self.layer_name
+        })
+        
+        await self._store_entry(entry_id, content, metadata)
+        
+        doc = Document(
+            id=f"{self.layer_name}_{entry_id}",
+            content=content,
+            metadata=metadata
+        )
+        
+        await self.vector_service.add_document(doc)
+        
+        logger.info(f"Stored specification: {entry_id}")
+        return entry_id
+    
+    async def _store_entry(self, entry_id: str, content: str, metadata: Dict[str, Any]):
+        """Store entry in database"""
+        cursor = self.db.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO memory_entries 
+            (entry_id, layer, content, metadata, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            entry_id,
+            self.layer_name,
+            content,
+            json.dumps(metadata),
+            datetime.utcnow().isoformat(),
+            datetime.utcnow().isoformat()
+        ))
+        self.db.commit()
+    
+    def _generate_id(self, content: str) -> str:
+        """Generate unique ID for content"""
+        return hashlib.md5(content.encode()).hexdigest()[:16]
+
+class MemoryService:
+    """5-Layer Hierarchical Memory Management Service
+    
+    Provides comprehensive memory management across five specialized layers:
     1. Knowledge Synthesis - Research findings, technical reports
     2. Conversation History - User interactions, agent decisions
     3. Codebase Knowledge - Generated code, patterns, documentation
     4. Stack Dependencies - Technology choices, library documentation
+    5. Project Requirements - User requirements, specifications, constraints
     """
     
     def __init__(self, db_path: str = "memory_management.db", 
@@ -458,7 +548,8 @@ class MemoryService:
             MemoryLayer.KNOWLEDGE_SYNTHESIS: KnowledgeLayer(self.db, self.vector_service),
             MemoryLayer.CONVERSATION_HISTORY: ConversationLayer(self.db, self.vector_service),
             MemoryLayer.CODEBASE_KNOWLEDGE: CodebaseLayer(self.db, self.vector_service),
-            MemoryLayer.STACK_DEPENDENCIES: StackLayer(self.db, self.vector_service)
+            MemoryLayer.STACK_DEPENDENCIES: StackLayer(self.db, self.vector_service),
+            MemoryLayer.PROJECT_REQUIREMENTS: ProjectRequirementsLayer(self.db, self.vector_service)
         }
         
         # Performance tracking
@@ -557,6 +648,16 @@ class MemoryService:
             elif "library_documentation" in data:
                 return await layer_service.store_library_documentation(
                     data["library"], data["documentation"], data["version"], metadata
+                )
+        
+        elif layer == MemoryLayer.PROJECT_REQUIREMENTS:
+            if "user_requirement" in data:
+                return await layer_service.store_user_requirement(
+                    data["requirement"], data["priority"], data["category"], metadata
+                )
+            elif "specification" in data:
+                return await layer_service.store_specification(
+                    data["specification"], data["component"], data["details"], metadata
                 )
         
         raise ValueError(f"Unsupported data type for layer {layer}")
@@ -820,3 +921,15 @@ class MemoryService:
         if self.db:
             self.db.close()
         logger.info("MemoryService closed")
+
+
+# Global instance
+_memory_service: Optional[MemoryService] = None
+
+
+def get_memory_service() -> MemoryService:
+    """Get the global memory service instance."""
+    global _memory_service
+    if _memory_service is None:
+        _memory_service = MemoryService()
+    return _memory_service

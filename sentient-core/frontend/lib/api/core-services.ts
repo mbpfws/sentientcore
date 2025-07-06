@@ -84,6 +84,35 @@ export interface ServiceHealth {
   memory_stats?: Record<string, any>;
 }
 
+// Enhanced types for conversation context and confirmations
+export interface ConversationContext {
+  current_focus: string;
+  user_intent: string;
+  requirements_gathered: boolean;
+  research_needed: boolean;
+  project_type?: string;
+  last_updated: string;
+}
+
+export interface PendingConfirmation {
+  confirmation_id: string;
+  message: string;
+  action_type: string;
+  action_data: Record<string, any>;
+  created_at: string;
+}
+
+export interface ConfirmationRequest {
+  confirmation_id: string;
+  confirmed: boolean;
+  session_id?: string;
+}
+
+export interface ContextUpdateRequest {
+  session_id: string;
+  context: ConversationContext;
+}
+
 /**
  * Core Services Client for frontend integration
  * Handles memory management, state tracking, and search operations
@@ -268,6 +297,185 @@ export class CoreServicesClient {
     }, interval);
 
     return () => clearInterval(intervalId);
+  }
+
+  // Enhanced Chat API Methods for Confirmation and Context Management
+  async handleConfirmation(request: ConfirmationRequest): Promise<{ confirmation_id: string; confirmed: boolean; action_executed: boolean; message: string }> {
+    const url = `${this.baseUrl}/api/chat/confirmation`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async getConversationContext(sessionId: string): Promise<ConversationContext> {
+    const url = `${this.baseUrl}/api/chat/sessions/${sessionId}/context`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async updateConversationContext(sessionId: string, context: ConversationContext): Promise<{ message: string; context: ConversationContext }> {
+    const url = `${this.baseUrl}/api/chat/sessions/${sessionId}/context`;
+    
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ session_id: sessionId, context }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async getPendingConfirmations(sessionId: string): Promise<{ confirmations: PendingConfirmation[]; total_count: number }> {
+    const url = `${this.baseUrl}/api/chat/sessions/${sessionId}/confirmations`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  // Enhanced session management methods
+  async getChatHistory(sessionId?: string, workflowMode?: string, taskId?: string): Promise<{ messages: any[]; workflow_mode: string; task_id?: string }> {
+    const params = new URLSearchParams();
+    if (sessionId) params.append('session_id', sessionId);
+    if (workflowMode) params.append('workflow_mode', workflowMode);
+    if (taskId) params.append('task_id', taskId);
+    
+    const url = `${this.baseUrl}/api/chat/history${params.toString() ? '?' + params.toString() : ''}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async listSessions(): Promise<{ sessions: any[]; total_count: number }> {
+    const url = `${this.baseUrl}/api/chat/sessions`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async deleteSession(sessionId: string): Promise<{ message: string }> {
+    const url = `${this.baseUrl}/api/chat/sessions/${sessionId}`;
+    
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async getSessionStats(sessionId: string): Promise<any> {
+    const url = `${this.baseUrl}/api/chat/sessions/${sessionId}/stats`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  // Research artifact methods
+  async listResearchArtifacts(): Promise<{ artifacts: any[]; total_count: number }> {
+    const url = `${this.baseUrl}/api/chat/research/artifacts`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  getResearchArtifactDownloadUrl(filename: string): string {
+    return `${this.baseUrl}/api/chat/download/research/${filename}`;
   }
 }
 

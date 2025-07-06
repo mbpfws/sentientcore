@@ -15,6 +15,8 @@ import { Paperclip, X, Image as ImageIcon, History, Settings, FileText, Zap, Sea
 import { ResearchResults } from './research-results';
 import { VerboseFeedback } from './verbose-feedback';
 import { researchService } from '@/lib/api/research-service';
+import ImplementationWorkflow from './implementation/implementation-workflow';
+import ImplementationProgress from './implementation/implementation-progress';
 
 // Extended from API Message type with UI-specific fields
 interface Message {
@@ -64,6 +66,10 @@ const ChatInterface = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'research' | 'verbose'>('chat');
   const [verboseSteps, setVerboseSteps] = useState<VerboseStep[]>([]);
   const [showVerbose, setShowVerbose] = useState<boolean>(false);
+  
+  // Implementation workflow state
+  const [implementationMode, setImplementationMode] = useState<'workflow' | 'progress' | null>(null);
+  const [activeImplementationId, setActiveImplementationId] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   
@@ -326,36 +332,64 @@ const ChatInterface = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-200px)]">
-      {/* Research mode buttons */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <Button 
-          variant={researchMode === 'knowledge' ? 'default' : 'outline'}
-          onClick={() => setResearchModeAndNotify('knowledge')}
-          disabled={isLoading}
-        >
-          📚 Knowledge Research
-        </Button>
-        <Button 
-          variant={researchMode === 'deep' ? 'default' : 'outline'}
-          onClick={() => setResearchModeAndNotify('deep')}
-          disabled={isLoading}
-        >
-          🧠 Deep Research
-        </Button>
-        <Button 
-          variant={researchMode === 'best_in_class' ? 'default' : 'outline'}
-          onClick={() => setResearchModeAndNotify('best_in_class')}
-          disabled={isLoading}
-        >
-          🏆 Best-in-Class
-        </Button>
+      {/* Mode selection buttons */}
+      <div className="space-y-2 mb-4">
+        {/* Research mode buttons */}
+        <div className="grid grid-cols-3 gap-2">
+          <Button 
+            variant={researchMode === 'knowledge' ? 'default' : 'outline'}
+            onClick={() => setResearchModeAndNotify('knowledge')}
+            disabled={isLoading}
+          >
+            📚 Knowledge Research
+          </Button>
+          <Button 
+            variant={researchMode === 'deep' ? 'default' : 'outline'}
+            onClick={() => setResearchModeAndNotify('deep')}
+            disabled={isLoading}
+          >
+            🧠 Deep Research
+          </Button>
+          <Button 
+            variant={researchMode === 'best_in_class' ? 'default' : 'outline'}
+            onClick={() => setResearchModeAndNotify('best_in_class')}
+            disabled={isLoading}
+          >
+            🏆 Best-in-Class
+          </Button>
+        </div>
+        
+        {/* Implementation mode buttons */}
+        <div className="grid grid-cols-2 gap-2">
+          <Button 
+            variant={implementationMode === 'workflow' ? 'default' : 'outline'}
+            onClick={() => {
+              setImplementationMode('workflow');
+              setActiveTab('implementation');
+            }}
+            disabled={isLoading}
+          >
+            🔧 Start Implementation
+          </Button>
+          <Button 
+            variant={implementationMode === 'progress' ? 'default' : 'outline'}
+            onClick={() => {
+              setImplementationMode('progress');
+              setActiveTab('implementation');
+            }}
+            disabled={isLoading || !activeImplementationId}
+          >
+            📊 View Progress
+          </Button>
+        </div>
       </div>
 
       {/* Tab navigation and content areas */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-3 mb-4">
+        <TabsList className="grid w-full grid-cols-4 mb-4">
           <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="research">Research Results</TabsTrigger>
+          <TabsTrigger value="implementation">Implementation</TabsTrigger>
           <TabsTrigger value="verbose">Verbose Feedback</TabsTrigger>
         </TabsList>
         
@@ -423,6 +457,29 @@ const ChatInterface = () => {
         
         <TabsContent value="research" className="flex-1 overflow-hidden">
           <ResearchResults />
+        </TabsContent>
+        
+        <TabsContent value="implementation" className="flex-1 overflow-hidden">
+          {implementationMode === 'workflow' ? (
+            <ImplementationWorkflow 
+              onImplementationStart={(implementationId) => {
+                setActiveImplementationId(implementationId);
+                setImplementationMode('progress');
+              }}
+            />
+          ) : implementationMode === 'progress' && activeImplementationId ? (
+            <ImplementationProgress 
+              implementationId={activeImplementationId}
+              onBack={() => setImplementationMode('workflow')}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-center text-muted-foreground">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Implementation Workflow</h3>
+                <p>Click "Start Implementation" to begin a new feature implementation workflow</p>
+              </div>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="verbose" className="flex-1 overflow-hidden">
