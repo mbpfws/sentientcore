@@ -1,0 +1,22 @@
+{
+  "id": "session_contextual-test-ff57c588_1751748996",
+  "timestamp": "2025-07-06T03:56:36.008191",
+  "state_data": {
+    "session_id": null,
+    "messages": [],
+    "user_prompt": "",
+    "image": null,
+    "language": "en",
+    "conversation_history": [],
+    "tasks": [],
+    "task_to_run_id": null,
+    "logs": [],
+    "next_action": null,
+    "orchestrator_decision": null
+  },
+  "metadata": {
+    "session_id": "contextual-test-ff57c588",
+    "type": "session_save"
+  },
+  "checksum": "6272fd65233365574ea82710242722062880aaa016ffc8f262e517a0e9550f3c"
+}

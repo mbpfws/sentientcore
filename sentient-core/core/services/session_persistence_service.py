@@ -53,7 +53,8 @@ class SessionPersistenceService:
                     last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     message_count INTEGER DEFAULT 0,
                     state_snapshot_id TEXT,
-                    metadata TEXT
+                    metadata TEXT,
+                    conversation_history TEXT
                 )
             """)
             
@@ -82,6 +83,14 @@ class SessionPersistenceService:
                 )
             """)
             
+            # Add conversation_history column if it doesn't exist (migration for existing databases)
+            try:
+                conn.execute("ALTER TABLE sessions ADD COLUMN conversation_history TEXT")
+                print("Added conversation_history column to existing sessions table")
+            except sqlite3.OperationalError:
+                # Column already exists, which is fine
+                pass
+            
             conn.commit()
     
     async def save_session(self, session_id: str, state: AppState) -> bool:
@@ -104,14 +113,15 @@ class SessionPersistenceService:
                 # Update session metadata
                 conn.execute("""
                     INSERT OR REPLACE INTO sessions 
-                    (session_id, last_accessed, message_count, state_snapshot_id, metadata)
-                    VALUES (?, ?, ?, ?, ?)
+                    (session_id, last_accessed, message_count, state_snapshot_id, metadata, conversation_history)
+                    VALUES (?, ?, ?, ?, ?, ?)
                 """, (
                     session_id,
                     datetime.now(),
                     len(state.messages),
                     snapshot_id,
-                    json.dumps({"language": state.language, "user_prompt": state.user_prompt})
+                    json.dumps({"language": state.language, "user_prompt": state.user_prompt}),
+                    json.dumps(getattr(state, 'conversation_history', []))
                 ))
                 
                 # Clear existing conversation history for this session
@@ -171,7 +181,7 @@ class SessionPersistenceService:
             with sqlite3.connect(self.db_path) as conn:
                 # Get session metadata
                 session_row = conn.execute(
-                    "SELECT state_snapshot_id, metadata FROM sessions WHERE session_id = ?",
+                    "SELECT state_snapshot_id, metadata, conversation_history FROM sessions WHERE session_id = ?",
                     (session_id,)
                 ).fetchone()
                 
@@ -179,8 +189,9 @@ class SessionPersistenceService:
                     print(f"Session {session_id} not found")
                     return None
                 
-                snapshot_id, metadata_json = session_row
+                snapshot_id, metadata_json, conversation_history_json = session_row
                 metadata = json.loads(metadata_json) if metadata_json else {}
+                conversation_history = json.loads(conversation_history_json) if conversation_history_json else []
                 
                 # Load conversation history
                 message_rows = conn.execute("""
@@ -218,7 +229,8 @@ class SessionPersistenceService:
                     logs=logs,
                     user_prompt=metadata.get("user_prompt", ""),
                     language=metadata.get("language", "en"),
-                    conversation_history=[f"{msg.sender}: {msg.content}" for msg in messages]
+                    conversation_history=conversation_history,
+                    session_id=session_id
                 )
                 
                 # Update cache

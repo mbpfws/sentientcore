@@ -1,0 +1,25 @@
+{
+  "id": "session_60a31f66-a32b-4d46-9210-c77110aeecc3_1751784153",
+  "timestamp": "2025-07-06T13:42:33.869936",
+  "state_data": {
+    "session_id": null,
+    "messages": [],
+    "user_prompt": "",
+    "image": null,
+    "language": "en",
+    "conversation_history": [],
+    "tasks": [],
+    "task_to_run_id": null,
+    "current_prd": null,
+    "prds": [],
+    "planning_state": "active",
+    "logs": [],
+    "next_action": null,
+    "orchestrator_decision": null
+  },
+  "metadata": {
+    "session_id": "60a31f66-a32b-4d46-9210-c77110aeecc3",
+    "type": "session_save"
+  },
+  "checksum": "b2c341427178feaac635cf23b18724873135d900bf3b27d1c3f2c8236a6e3a29"
+}

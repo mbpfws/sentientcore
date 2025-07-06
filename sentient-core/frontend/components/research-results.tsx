@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import ReactMarkdown from 'react-markdown';
 import { Download, FileText, Search, Clock, ExternalLink, BookOpen } from 'lucide-react';
+import { researchService } from '@/lib/api/research-service';
 
 interface ResearchResult {
   id: string;
@@ -44,27 +45,54 @@ const ResearchResults: React.FC<ResearchResultsProps> = ({ workflowId }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [verboseMode, setVerboseMode] = useState(false);
 
+  // Handle real-time updates
+  const handleResearchUpdate = useCallback((updatedResult: ResearchResult) => {
+    setResults(prevResults => {
+      const existingIndex = prevResults.findIndex(r => r.id === updatedResult.id);
+      if (existingIndex >= 0) {
+        // Update existing result
+        const newResults = [...prevResults];
+        newResults[existingIndex] = updatedResult;
+        return newResults.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      } else {
+        // Add new result
+        return [updatedResult, ...prevResults].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      }
+    });
+    
+    // Update selected result if it's the one being updated
+    if (selectedResult?.id === updatedResult.id) {
+      setSelectedResult(updatedResult);
+    }
+  }, [selectedResult]);
+
   // Load research results from localStorage and API
   useEffect(() => {
     loadResearchResults();
-  }, [workflowId]);
+    
+    // Set up WebSocket listener for real-time updates
+    const listenerId = `research-results-${workflowId}`;
+    researchService.addUpdateListener(listenerId, handleResearchUpdate);
+    
+    // Cleanup on unmount
+    return () => {
+      researchService.removeUpdateListener(listenerId);
+    };
+  }, [workflowId, handleResearchUpdate]);
 
   const loadResearchResults = async () => {
     setIsLoading(true);
     try {
       // Load from localStorage first for immediate display
-      const storedResults = localStorage.getItem(`research_results_${workflowId}`);
-      if (storedResults) {
-        setResults(JSON.parse(storedResults));
+      const localResults = researchService.getLocalResults(workflowId);
+      if (localResults.length > 0) {
+        setResults(localResults);
       }
 
       // Then fetch from API for latest updates
-      const response = await fetch(`/api/research/results?workflow_id=${workflowId}`);
-      if (response.ok) {
-        const apiResults = await response.json();
-        setResults(apiResults.data || []);
-        // Update localStorage
-        localStorage.setItem(`research_results_${workflowId}`, JSON.stringify(apiResults.data || []));
+      const apiResponse = await researchService.getResearchResults(workflowId);
+      if (apiResponse.data) {
+        setResults(apiResponse.data);
       }
     } catch (error) {
       console.error('Failed to load research results:', error);
@@ -73,62 +101,34 @@ const ResearchResults: React.FC<ResearchResultsProps> = ({ workflowId }) => {
     }
   };
 
-  const downloadAsMarkdown = (result: ResearchResult) => {
-    if (!result.results) return;
-
-    const markdown = `# Research Report: ${result.query}
-
-**Mode:** ${result.mode.replace('_', ' ').toUpperCase()}
-**Date:** ${new Date(result.created_at).toLocaleDateString()}
-**Status:** ${result.status}
-
-## Summary
-
-${result.results.summary}
-
-## Sources
-
-${result.results.sources.map((source, index) => 
-  `${index + 1}. [${source.title}](${source.url})\n   ${source.snippet}\n`
-).join('\n')}
-
-${result.results.insights ? `## Key Insights\n\n${result.results.insights.map(insight => `- ${insight}`).join('\n')}\n\n` : ''}
-
-${result.results.recommendations ? `## Recommendations\n\n${result.results.recommendations.map(rec => `- ${rec}`).join('\n')}\n\n` : ''}
-
-${result.results.citations ? `## Citations\n\n${result.results.citations.map((citation, index) => `[${index + 1}] ${citation}`).join('\n')}` : ''}
-`;
-
-    const blob = new Blob([markdown], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `research_${result.query.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const downloadAsMarkdown = async (result: ResearchResult) => {
+    try {
+      const markdown = await researchService.exportToMarkdown(result.id);
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `research_${result.query.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download Markdown:', error);
+    }
   };
 
   const downloadAsPDF = async (result: ResearchResult) => {
     try {
-      const response = await fetch('/api/research/export/pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ result_id: result.id })
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `research_${result.query.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
+      const blob = await researchService.exportToPDF(result.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `research_${result.query.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Failed to download PDF:', error);
     }

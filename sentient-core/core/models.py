@@ -43,6 +43,7 @@ class MemoryLayer(str, Enum):
     CONVERSATION_HISTORY = "conversation_history"
     CODEBASE_KNOWLEDGE = "codebase_knowledge"
     STACK_DEPENDENCIES = "stack_dependencies"
+    PROJECT_REQUIREMENTS = "project_requirements"  # Layer 2: PRDs and planning documents
 
 class SessionState(str, Enum):
     """Represents the overall state of a user's session."""
@@ -117,6 +118,22 @@ class ResearchState(BaseModel):
     final_report: Optional[str] = None
     continual_search_suggestions: List[str] = Field(default_factory=list)
 
+class ProjectRequirementDocument(BaseModel):
+    """Represents a Project Requirements Document (PRD) for Layer 2 memory storage."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    requirements: List[str] = Field(default_factory=list)
+    technical_stack: List[str] = Field(default_factory=list)
+    architecture_patterns: List[str] = Field(default_factory=list)
+    components: List[str] = Field(default_factory=list)
+    tasks: List[str] = Field(default_factory=list)
+    research_artifacts: List[str] = Field(default_factory=list)  # References to research reports
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: Optional[datetime] = None
+    status: str = "draft"
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
 # --- Main Application State ---
 
 class AppState(BaseModel):
@@ -140,6 +157,11 @@ class AppState(BaseModel):
     # Task Management
     tasks: List[EnhancedTask] = Field(default_factory=list)
     task_to_run_id: Optional[str] = None
+    
+    # Build 3: Planning & PRD Management
+    current_prd: Optional[ProjectRequirementDocument] = None
+    prds: List[ProjectRequirementDocument] = Field(default_factory=list)
+    planning_state: SessionState = SessionState.ACTIVE
     
     # System & Workflow
     logs: List[LogEntry] = Field(default_factory=list)

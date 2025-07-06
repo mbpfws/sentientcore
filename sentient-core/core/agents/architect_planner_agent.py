@@ -24,7 +24,7 @@ class ArchitectPlannerAgent(BaseAgent):
         super().__init__(
             agent_id=agent_id,
             name="Architect Planner Agent",
-            capabilities=[AgentCapability.PLANNING, AgentCapability.ARCHITECTURE_DESIGN, AgentCapability.ANALYSIS],
+            capabilities=[AgentCapability.PLANNING, AgentCapability.ANALYSIS],
             description="Specialized agent for project planning, architecture design, and requirement analysis"
         )
         self.llm_service = llm_service

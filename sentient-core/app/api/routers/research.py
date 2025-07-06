@@ -10,6 +10,7 @@ from datetime import datetime
 import os
 import sys
 from io import BytesIO
+from pathlib import Path
 import markdown
 
 # Optional WeasyPrint import for PDF generation - temporarily disabled
@@ -94,9 +95,66 @@ class ExportRequest(BaseModel):
 research_storage: Dict[str, ResearchResult] = {}
 active_research: Dict[str, Dict[str, Any]] = {}
 
+# Research results directory
+RESEARCH_RESULTS_DIR = Path("memory/research_results")
+RESEARCH_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+def save_research_result_to_file(result: ResearchResult) -> None:
+    """Save research result to file system for persistence"""
+    try:
+        file_path = RESEARCH_RESULTS_DIR / f"{result.id}.json"
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(result.dict(), f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error saving research result to file: {e}")
+
+def load_research_result_from_file(result_id: str) -> Optional[ResearchResult]:
+    """Load research result from file system"""
+    try:
+        file_path = RESEARCH_RESULTS_DIR / f"{result_id}.json"
+        if file_path.exists():
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return ResearchResult(**data)
+    except Exception as e:
+        print(f"Error loading research result from file: {e}")
+    return None
+
+def load_all_research_results() -> Dict[str, ResearchResult]:
+    """Load all research results from file system"""
+    results = {}
+    try:
+        for file_path in RESEARCH_RESULTS_DIR.glob("*.json"):
+            result_id = file_path.stem
+            result = load_research_result_from_file(result_id)
+            if result:
+                results[result_id] = result
+    except Exception as e:
+        print(f"Error loading research results: {e}")
+    return results
+
+def get_research_results_by_workflow(workflow_id: str) -> List[ResearchResult]:
+    """Get all research results for a specific workflow"""
+    all_results = load_all_research_results()
+    return [result for result in all_results.values() if result.workflow_id == workflow_id]
+
 # Initialize services
 llm_service = EnhancedLLMService()
 memory_service = MemoryService()
+
+# Load existing research results from file system on startup
+def initialize_research_storage():
+    """Load existing research results from file system into memory"""
+    global research_storage
+    try:
+        file_results = load_all_research_results()
+        research_storage.update(file_results)
+        print(f"Loaded {len(file_results)} research results from file system")
+    except Exception as e:
+        print(f"Error loading research results on startup: {e}")
+
+# Initialize on module load
+initialize_research_storage()
 
 @router.post("/start")
 async def start_research(
@@ -332,9 +390,13 @@ async def update_research_status(
             research_result.results = results
             research_result.completed_at = datetime.now().isoformat()
         
+        # Save to file system for persistence
+        save_research_result_to_file(research_result)
+        
         # Send WebSocket update
         await manager.send_update(research_id, {
-            "type": "status_update",
+            "type": "research_update",
+            "result": research_result.dict(),
             "research_id": research_id,
             "status": status,
             "progress": progress,
@@ -347,28 +409,37 @@ async def update_research_status(
 async def get_research_results(workflow_id: str) -> JSONResponse:
     """Get all research results for a workflow"""
     try:
-        # Get from memory storage
-        workflow_results = [
+        # Get from file system (persistent storage)
+        file_results = get_research_results_by_workflow(workflow_id)
+        
+        # Get from memory storage (current session)
+        memory_results = [
             result for result in research_storage.values()
             if result.workflow_id == workflow_id
         ]
         
-        # Also get from persistent memory
-        memories = await memory_service.retrieve_memories(
-            memory_type=MemoryType.KNOWLEDGE_SYNTHESIS,
-            limit=50
-        )
+        # Combine results, prioritizing memory (more recent) over file
+        combined_results = {}
         
-        # Filter memories for this workflow
-        persistent_results = [
-            memory for memory in memories
-            if memory.metadata.get("workflow_id") == workflow_id
-        ]
+        # Add file results first
+        for result in file_results:
+            combined_results[result.id] = result
+        
+        # Override with memory results (more recent)
+        for result in memory_results:
+            combined_results[result.id] = result
+        
+        # Sort by created_at (newest first)
+        sorted_results = sorted(
+            combined_results.values(),
+            key=lambda x: x.created_at,
+            reverse=True
+        )
         
         return JSONResponse({
             "success": True,
-            "data": [result.dict() for result in workflow_results],
-            "persistent_count": len(persistent_results),
+            "data": [result.dict() for result in sorted_results],
+            "total_count": len(sorted_results),
             "message": "Research results retrieved successfully"
         })
         
@@ -379,16 +450,24 @@ async def get_research_results(workflow_id: str) -> JSONResponse:
 async def get_research_result(result_id: str) -> JSONResponse:
     """Get a specific research result"""
     try:
-        if result_id not in research_storage:
+        # First check memory storage
+        result = research_storage.get(result_id)
+        
+        # If not in memory, check file system
+        if not result:
+            result = load_research_result_from_file(result_id)
+        
+        if not result:
             raise HTTPException(status_code=404, detail="Research result not found")
         
-        result = research_storage[result_id]
         return JSONResponse({
             "success": True,
             "data": result.dict(),
             "message": "Research result retrieved successfully"
         })
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get research result: {str(e)}")
 
@@ -401,11 +480,16 @@ async def export_research_pdf(request: ExportRequest) -> StreamingResponse:
                 status_code=503, 
                 detail="PDF export is not available. WeasyPrint dependencies are not installed."
             )
-            
-        if request.result_id not in research_storage:
-            raise HTTPException(status_code=404, detail="Research result not found")
         
-        result = research_storage[request.result_id]
+        # First check memory storage
+        result = research_storage.get(request.result_id)
+        
+        # If not in memory, check file system
+        if not result:
+            result = load_research_result_from_file(request.result_id)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Research result not found")
         
         # Generate HTML content
         html_content = generate_research_html(result)
@@ -429,10 +513,15 @@ async def export_research_pdf(request: ExportRequest) -> StreamingResponse:
 async def export_research_markdown(request: ExportRequest) -> JSONResponse:
     """Export research result as Markdown"""
     try:
-        if request.result_id not in research_storage:
-            raise HTTPException(status_code=404, detail="Research result not found")
+        # First check memory storage
+        result = research_storage.get(request.result_id)
         
-        result = research_storage[request.result_id]
+        # If not in memory, check file system
+        if not result:
+            result = load_research_result_from_file(request.result_id)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Research result not found")
         markdown_content = generate_research_markdown(result)
         
         return JSONResponse({

@@ -1,0 +1,22 @@
+{
+  "id": "session_f91cc0ca-1faa-4cfd-bdbe-ecfb9e379031_1751749405",
+  "timestamp": "2025-07-06T04:03:25.743471",
+  "state_data": {
+    "session_id": null,
+    "messages": [],
+    "user_prompt": "",
+    "image": null,
+    "language": "en",
+    "conversation_history": [],
+    "tasks": [],
+    "task_to_run_id": null,
+    "logs": [],
+    "next_action": null,
+    "orchestrator_decision": null
+  },
+  "metadata": {
+    "session_id": "f91cc0ca-1faa-4cfd-bdbe-ecfb9e379031",
+    "type": "session_save"
+  },
+  "checksum": "6272fd65233365574ea82710242722062880aaa016ffc8f262e517a0e9550f3c"
+}

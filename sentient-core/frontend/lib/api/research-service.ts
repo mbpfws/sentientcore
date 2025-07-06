@@ -192,7 +192,10 @@ class ResearchService {
     if (typeof window === 'undefined') return;
 
     try {
-      const wsUrl = `ws://localhost:8000/ws/research/${resultId}`;
+      // Use relative WebSocket URL that works with any host
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}/ws/research/${resultId}`;
       this.wsConnection = new WebSocket(wsUrl);
 
       this.wsConnection.onopen = () => {
