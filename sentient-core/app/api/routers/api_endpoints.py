@@ -21,13 +21,27 @@ state_service = None
 
 # Request models
 class MemoryStoreRequest(BaseModel):
-    content: str
+    content: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
 class StateResponse(BaseModel):
     status: str
     timestamp: str
     system_info: Dict[str, Any]
+
+# Initialization endpoint
+@router.post("/initialize")
+async def initialize_session():
+    """Initialize a new session and return initial state"""
+    try:
+        # This can be expanded to create a new session ID, clear state, etc.
+        return {
+            "status": "initialized",
+            "timestamp": datetime.now().isoformat(),
+            "message": "Session initialized successfully."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error initializing session: {str(e)}")
 
 # State endpoint
 @router.get("/state")

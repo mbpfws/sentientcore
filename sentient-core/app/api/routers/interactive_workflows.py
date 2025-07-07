@@ -109,7 +109,7 @@ async def create_workflow(
             workflow_id=workflow_id,
             name=request.name,
             description=request.description,
-            status=workflow_state.status if workflow_state else InteractiveWorkflowStatus.CREATED,
+            status=workflow_state.status if workflow_state else InteractiveWorkflowStatus.INITIALIZED,
             orchestration_mode=mode,
             created_at=workflow_state.created_at if workflow_state else datetime.now(),
             updated_at=workflow_state.updated_at if workflow_state else datetime.now(),

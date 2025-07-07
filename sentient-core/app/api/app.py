@@ -1,5 +1,14 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class NormalizeSlashMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.scope['path'] != '/' and request.scope['path'].endswith('/'):
+            request.scope['path'] = request.scope['path'][:-1]
+        response = await call_next(request)
+        return response
+
 from fastapi.responses import JSONResponse
 import os
 import sys
@@ -115,6 +124,7 @@ app = FastAPI(
 )
 
 # Configure CORS for frontend integration
+app.add_middleware(NormalizeSlashMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # For development - restrict in production
@@ -122,6 +132,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 
 # Global exception handlers
 @app.exception_handler(SentientCoreError)
@@ -178,18 +190,19 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # Import routers
-from .routers import agents, workflows, chat, core_services, api_endpoints, interactive_workflows, research, monitoring, implementation
+from .routers import agents, workflows, chat, unified_router, interactive_workflows, research, monitoring, implementation, sse_events, workflow_websockets
 
 # Register routers with /api prefix
 app.include_router(agents.router, prefix="/api")
 app.include_router(workflows.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
-app.include_router(core_services.router, prefix="/api")
-app.include_router(api_endpoints.router, prefix="/api")
+app.include_router(unified_router.router, prefix="/api")
 app.include_router(interactive_workflows.router, prefix="/api")
 app.include_router(research.router, prefix="/api")
 app.include_router(monitoring.router, prefix="/api")
 app.include_router(implementation.router, prefix="/api")
+app.include_router(sse_events.router, prefix="/api")
+app.include_router(workflow_websockets.router, prefix="/api")
 
 @app.get("/")
 async def root():
@@ -203,17 +216,21 @@ async def health_check(request: Request):
         # Get health monitor if available
         if hasattr(request.app.state, 'health_monitor'):
             health_monitor_instance = request.app.state.health_monitor
-            system_health = await health_monitor_instance.get_current_health()
+            system_health = health_monitor_instance.get_current_health()
             
             return {
-                "status": system_health.overall_status.value,
+                "status": system_health.status.value,
                 "message": "Sentient Core API health check",
                 "timestamp": system_health.timestamp.isoformat(),
-                "system_metrics": {
-                    "cpu_usage": system_health.system_metrics.get("cpu_usage"),
-                    "memory_usage": system_health.system_metrics.get("memory_usage"),
-                    "disk_usage": system_health.system_metrics.get("disk_usage")
-                },
+                "system_metrics": [
+                    {
+                        "name": metric.name,
+                        "value": metric.value,
+                        "unit": metric.unit,
+                        "status": metric.status.value
+                    }
+                    for metric in system_health.system_metrics
+                ],
                 "components": {
                     name: {
                         "status": comp.status.value,
@@ -276,12 +293,12 @@ async def get_detailed_health(request: Request):
     try:
         if hasattr(request.app.state, 'health_monitor'):
             health_monitor_instance = request.app.state.health_monitor
-            current_health = await health_monitor_instance.get_current_health()
-            health_history = health_monitor_instance.get_health_history(limit=10)
+            current_health = health_monitor_instance.get_current_health()
+            health_history = health_monitor_instance.get_health_history(hours=1)
             
             return {
                 "current": {
-                    "status": current_health.overall_status.value,
+                    "status": current_health.status.value,
                     "timestamp": current_health.timestamp.isoformat(),
                     "system_metrics": current_health.system_metrics,
                     "components": {
@@ -296,7 +313,7 @@ async def get_detailed_health(request: Request):
                 },
                 "history": [
                     {
-                        "status": h.overall_status.value,
+                        "status": h.status.value,
                         "timestamp": h.timestamp.isoformat(),
                         "system_metrics": h.system_metrics
                     }

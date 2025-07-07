@@ -10,6 +10,7 @@ from collections import defaultdict, deque
 import asyncio
 import json
 from pathlib import Path
+from uuid import uuid4
 
 from .enhanced_state_manager import (
     EnhancedStateManager, StateChangeType, StatePersistenceMode, 
@@ -565,6 +566,21 @@ class InteractiveStateManager(EnhancedStateManager):
         self.change_history.append(change)
         await self.event_bus.emit(change)
     
+    def list_workflows(self) -> List[InteractiveWorkflow]:
+        """List all workflows."""
+        return list(self.interactive_state.active_workflows.values())
+    
+    async def get_workflow_state(self, workflow_id: str) -> Optional[InteractiveWorkflow]:
+        """Get workflow state by ID."""
+        return self.interactive_state.active_workflows.get(workflow_id)
+    
+    async def get_workflow_steps(self, workflow_id: str) -> List[WorkflowStep]:
+        """Get all steps for a workflow."""
+        workflow = self.interactive_state.active_workflows.get(workflow_id)
+        return workflow.steps if workflow else []
+    
+
+
     async def get_workflow_analytics(self, workflow_id: Optional[str] = None) -> Dict[str, Any]:
         """Get analytics for workflows."""
         if workflow_id:

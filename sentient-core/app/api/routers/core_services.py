@@ -64,16 +64,11 @@ async def store_memory(request: MemoryStoreRequest):
             await memory_service.start()
         
         # Convert string layer to enum
-        layer_map = {
-            "knowledge_synthesis": MemoryLayer.KNOWLEDGE_SYNTHESIS,
-            "conversation_history": MemoryLayer.CONVERSATION_HISTORY,
-            "codebase_knowledge": MemoryLayer.CODEBASE_KNOWLEDGE,
-            "stack_dependencies": MemoryLayer.STACK_DEPENDENCIES
-        }
-        
-        layer = layer_map.get(request.layer)
-        if not layer:
-            raise HTTPException(status_code=400, detail=f"Invalid layer: {request.layer}")
+        try:
+            layer = MemoryLayer(request.layer)
+        except ValueError:
+            # Fallback to UNKNOWN for consistency, assuming MemoryLayer.UNKNOWN exists.
+            layer = MemoryLayer.UNKNOWN
         
         # Convert string memory type to enum
         memory_type_map = {
@@ -97,11 +92,8 @@ async def store_memory(request: MemoryStoreRequest):
         
         memory_type = memory_type_map.get(request.memory_type)
         if not memory_type:
-            available_types = list(memory_type_map.keys())
-            raise HTTPException(
-                status_code=422, 
-                detail=f"Invalid memory type: '{request.memory_type}'. Available types: {available_types}"
-            )
+            # Fallback to UNKNOWN as per instruction.
+            memory_type = MemoryType.UNKNOWN
         
         # Store the memory
         memory_id = await memory_service.store_memory(

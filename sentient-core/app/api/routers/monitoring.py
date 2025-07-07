@@ -22,7 +22,7 @@ async def get_session_logs(
     """
     try:
         state_manager = service_factory.state_manager
-        session_data = await state_manager.load_session_data(session_id)
+        session_data = await state_manager.get_session_state(session_id)
         
         if not session_data:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
@@ -175,7 +175,7 @@ async def get_conversation_history(
     """
     try:
         state_manager = service_factory.state_manager
-        session_data = await state_manager.load_session_data(session_id)
+        session_data = await state_manager.get_session_state(session_id)
         
         if not session_data:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")

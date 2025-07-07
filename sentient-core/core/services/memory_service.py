@@ -47,6 +47,7 @@ class MemoryType(Enum):
     DEPENDENCY_INFO = "dependency_info"
     BEST_PRACTICE = "best_practice"
     ERROR_SOLUTION = "error_solution"
+    UNKNOWN = "unknown"
 
 @dataclass
 class MemoryEntry:

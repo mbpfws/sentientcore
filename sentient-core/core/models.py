@@ -44,6 +44,7 @@ class MemoryLayer(str, Enum):
     CODEBASE_KNOWLEDGE = "codebase_knowledge"
     STACK_DEPENDENCIES = "stack_dependencies"
     PROJECT_REQUIREMENTS = "project_requirements"  # Layer 2: PRDs and planning documents
+    UNKNOWN = "unknown"
 
 class SessionState(str, Enum):
     """Represents the overall state of a user's session."""

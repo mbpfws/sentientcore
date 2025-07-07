@@ -242,7 +242,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
           layer: 'session',
           type: 'conversation',
           key: `message_${message.id}`,
-          data: message,
+          data: { ...message },
           metadata: { session_id: sessionId, workflow_mode: orchestratorMode }
         });
       } catch (error) {

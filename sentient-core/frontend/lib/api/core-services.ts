@@ -118,15 +118,11 @@ export interface ContextUpdateRequest {
  * Handles memory management, state tracking, and search operations
  */
 export class CoreServicesClient {
-  private baseUrl: string;
-
-  constructor(baseUrl: string = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') {
-    this.baseUrl = baseUrl;
-  }
+  constructor() {}
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}/api/core-services?endpoint=${encodeURIComponent(endpoint)}`;
-    
+    const url = `/api${endpoint}`;
+
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',

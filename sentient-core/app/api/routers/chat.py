@@ -79,14 +79,14 @@ async def _process_message_internal(
             session_id = str(uuid.uuid4())
         
         # Get services from factory
-        state_manager = services.get_state_manager()
-        llm_service = services.get_llm_service()
-        memory_service = services.get_memory_service()
-        sse_manager = services.get_sse_manager()
-        workflow_orchestrator = services.get_workflow_orchestrator()
+        state_manager = services.state_manager
+        llm_service = services.llm_service
+        memory_service = services.memory_service
+        sse_manager = services.sse_manager
+        workflow_orchestrator = services.workflow_service
         
         # Load or create session state
-        session_state = await state_manager.get_session(session_id)
+        session_state = await state_manager.get_session_state(session_id)
         if not session_state:
             session_state = await state_manager.create_session(session_id)
         
@@ -99,7 +99,7 @@ async def _process_message_internal(
         }
         
         # Update session with user message
-        await state_manager.update_session(session_id, {
+        await state_manager.merge_session_data(session_id, {
             "messages": session_state.data.get("messages", []) + [user_message],
             "last_activity": time.strftime("%Y-%m-%dT%H:%M:%SZ")
         })
@@ -133,7 +133,7 @@ async def _process_message_internal(
         
         # Update session with assistant message
         current_messages = session_state.data.get("messages", []) + [user_message]
-        await state_manager.update_session(session_id, {
+        await state_manager.merge_session_data(session_id, {
             "messages": current_messages + [assistant_message],
             "last_activity": time.strftime("%Y-%m-%dT%H:%M:%SZ")
         })
@@ -251,8 +251,8 @@ async def get_chat_history(
         # Load session history if session_id provided
         if session_id:
             try:
-                state_manager = services.get_state_manager()
-                session_state = await state_manager.get_session(session_id)
+                state_manager = services.state_manager
+                session_state = await state_manager.get_session_state(session_id)
                 
                 # Convert session messages to MessageResponse format
                 if session_state and "messages" in session_state.data:
@@ -351,7 +351,7 @@ async def list_research_artifacts():
 async def list_sessions(services: ServiceFactory = Depends(get_service_factory)):
     """List all available sessions with metadata"""
     try:
-        state_manager = services.get_state_manager()
+        state_manager = services.state_manager
         
         # Get all sessions
         sessions = await state_manager.list_sessions()
@@ -375,10 +375,10 @@ async def get_session(
         if not session_id or len(session_id) < 8:
             raise HTTPException(status_code=400, detail="Invalid session ID format")
         
-        state_manager = services.get_state_manager()
+        state_manager = services.state_manager
         
         # Get session details
-        session_data = await state_manager.get_session(session_id)
+        session_data = await state_manager.get_session_state(session_id)
         
         if not session_data:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -406,7 +406,7 @@ async def delete_session(
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise HTTPException(status_code=400, detail="Invalid session ID")
         
-        state_manager = services.get_state_manager()
+        state_manager = services.state_manager
         
         # Delete the session
         success = await state_manager.delete_session(session_id)
@@ -432,10 +432,10 @@ async def get_session_stats(
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise HTTPException(status_code=400, detail="Invalid session ID")
         
-        state_manager = services.get_state_manager()
+        state_manager = services.state_manager
         
         # Get session data
-        session_data = await state_manager.get_session(session_id)
+        session_data = await state_manager.get_session_state(session_id)
         
         if session_data:
             # Calculate basic statistics from session data
@@ -469,12 +469,12 @@ async def handle_confirmation(
         confirmation_id = confirmation_request.confirmation_id
         confirmed = confirmation_request.confirmed
         
-        state_manager = services.get_state_manager()
+        state_manager = services.state_manager
         
         # Load session to get pending confirmations
         session_data = None
         if session_id:
-            session_data = await state_manager.get_session(session_id)
+            session_data = await state_manager.get_session_state(session_id)
         
         if not session_data:
             session_data_dict = {"pending_confirmations": []}
@@ -529,7 +529,7 @@ async def handle_confirmation(
         
         # Save updated session
         if session_id:
-            await state_manager.update_session(session_id, session_data_dict)
+            await state_manager.merge_session_data(session_id, session_data_dict)
         
         return ApiResponse(data=response_data)
         
@@ -549,10 +549,10 @@ async def get_conversation_context(
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise HTTPException(status_code=400, detail="Invalid session ID")
         
-        state_manager = services.get_state_manager()
+        state_manager = services.state_manager
         
         # Load session
-        session_data = await state_manager.get_session(session_id)
+        session_data = await state_manager.get_session_state(session_id)
         
         # Get conversation context from session or create default
         if session_data and "conversation_context" in session_data.data:
@@ -586,10 +586,10 @@ async def update_conversation_context(
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise HTTPException(status_code=400, detail="Invalid session ID")
         
-        state_manager = services.get_state_manager()
+        state_manager = services.state_manager
         
         # Load session
-        session_data = await state_manager.get_session(session_id)
+        session_data = await state_manager.get_session_state(session_id)
         if not session_data:
             session_data_dict = {}
         else:
@@ -601,7 +601,7 @@ async def update_conversation_context(
         session_data_dict["conversation_context"] = context_dict
         
         # Save updated session
-        await state_manager.update_session(session_id, session_data_dict)
+        await state_manager.merge_session_data(session_id, session_data_dict)
         
         return ApiResponse(data={
             "message": "Conversation context updated successfully",
@@ -624,10 +624,10 @@ async def get_pending_confirmations(
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             raise HTTPException(status_code=400, detail="Invalid session ID")
         
-        state_manager = services.get_state_manager()
+        state_manager = services.state_manager
         
         # Load session
-        session_data = await state_manager.get_session(session_id)
+        session_data = await state_manager.get_session_state(session_id)
         
         # Get pending confirmations
         if session_data and "pending_confirmations" in session_data.data:

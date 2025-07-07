@@ -1,0 +1,35 @@
+{
+  "total_tests": 6,
+  "passed_tests": 1,
+  "failed_tests": 5,
+  "success_rate": 16.666666666666664,
+  "duration_seconds": 12.258187,
+  "start_time": "2025-07-07T21:18:24.537682",
+  "end_time": "2025-07-07T21:18:36.795869",
+  "test_results": {
+    "Backend Health": {
+      "passed": false,
+      "timestamp": "2025-07-07T21:18:26.576730"
+    },
+    "Frontend Accessibility": {
+      "passed": true,
+      "timestamp": "2025-07-07T21:18:26.628461"
+    },
+    "API Endpoints": {
+      "passed": false,
+      "timestamp": "2025-07-07T21:18:32.730666"
+    },
+    "Chat Functionality": {
+      "passed": false,
+      "timestamp": "2025-07-07T21:18:34.764014"
+    },
+    "Session Management": {
+      "passed": false,
+      "timestamp": "2025-07-07T21:18:34.764615"
+    },
+    "Agent Orchestration": {
+      "passed": false,
+      "timestamp": "2025-07-07T21:18:36.795524"
+    }
+  }
+}

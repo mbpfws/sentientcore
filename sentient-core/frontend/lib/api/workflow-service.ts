@@ -8,7 +8,7 @@ export const WorkflowService = {
    */
   getWorkflows: async (): Promise<Workflow[]> => {
     try {
-      const response = await fetch(`${API_URL}/api/workflows`);
+      const response = await fetch(`${API_URL}/api/workflows/`);
       if (!response.ok) {
         throw new Error(`Error fetching workflows: ${response.statusText}`);
       }

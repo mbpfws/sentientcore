@@ -175,6 +175,8 @@ class EnhancedLLMService:
         self._configs[name] = config
         self._initialize_client(name, config)
     
+
+
     def _initialize_client(self, name: str, config: LLMConfig):
         """Initialize client for a provider"""
         try:
@@ -200,11 +202,11 @@ class EnhancedLLMService:
     
     async def chat_completion(
         self,
-        messages: List[ChatMessage],
+        messages: List[Dict[str, str]],
         provider_name: str = "default",
         stream: bool = False,
         **kwargs
-    ) -> Union[LLMResponse, AsyncGenerator[str, None]]:
+    ) -> Union[str, AsyncGenerator[str, None]]:
         """Generate chat completion"""
         if provider_name not in self._configs:
             raise ValueError(f"Provider {provider_name} not configured")
@@ -234,6 +236,9 @@ class EnhancedLLMService:
             else:
                 raise ValueError(f"Unsupported provider: {config.provider}")
             
+            if not stream:
+                return response.content
+            
             # Update stats
             processing_time = (datetime.now() - start_time).total_seconds()
             self._update_stats(True, processing_time)
@@ -260,10 +265,7 @@ class EnhancedLLMService:
         **kwargs
     ) -> Union[LLMResponse, AsyncGenerator[str, None]]:
         """Handle Groq completion"""
-        formatted_messages = [
-            {"role": msg.role.value, "content": msg.content}
-            for msg in messages
-        ]
+        formatted_messages = messages
         
         params = {
             "model": config.model,

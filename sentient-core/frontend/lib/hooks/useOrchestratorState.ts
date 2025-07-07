@@ -202,7 +202,7 @@ export function useOrchestratorState() {
         layer: 'session',
         type: 'conversation',
         key: `message_${newMessage.id}`,
-        data: newMessage,
+        data: { ...newMessage },
         metadata: { 
           session_id: stateRef.current.sessionId, 
           workflow_mode: stateRef.current.orchestratorMode 

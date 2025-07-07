@@ -8,7 +8,7 @@ export const AgentService = {
    */
   getAgents: async (): Promise<Agent[]> => {
     try {
-      const response = await fetch(`${API_URL}/api/agents`);
+      const response = await fetch(`${API_URL}/api/agents/`);
       if (!response.ok) {
         throw new Error(`Error fetching agents: ${response.statusText}`);
       }
