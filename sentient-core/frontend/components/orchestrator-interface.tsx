@@ -1193,7 +1193,7 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">
-                        Queue: {orchestratorState.executionState.action_queue.length}
+                        Queue: {orchestratorState.executionState.action_queue?.length || 0}
                       </Badge>
                       <Badge variant={isHealthyLocal ? 'default' : 'destructive'}>
                          {isHealthyLocal ? 'Healthy' : 'Issues'}
@@ -1201,9 +1201,9 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                     </div>
                   </div>
                   
-                  {orchestratorState.executionState.action_queue.length > 0 ? (
+                  {orchestratorState.executionState.action_queue?.length > 0 ? (
                     <div className="space-y-2">
-                      {orchestratorState.executionState.action_queue.slice(0, 5).map((action, index) => (
+                      {((orchestratorState.executionState.action_queue || []).slice(0, 5) || []).map((action, index) => (
                         <div
                           key={action.id}
                           className={`p-3 border rounded-lg ${
@@ -1228,14 +1228,14 @@ export function OrchestratorInterface({ className }: OrchestratorInterfaceProps)
                           </div>
                           {action.data && (
                             <div className="text-sm text-muted-foreground mt-1">
-                              {typeof action.data === 'object' ? JSON.stringify(action.data).slice(0, 100) + '...' : action.data}
+                              {typeof action.data === 'object' ? ((JSON.stringify(action.data) || '').slice(0, 100) || '') + '...' : action.data || ''}
                             </div>
                           )}
                         </div>
                       ))}
-                      {orchestratorState.executionState.action_queue.length > 5 && (
+                      {(orchestratorState.executionState.action_queue?.length || 0) > 5 && (
                         <div className="text-center text-sm text-muted-foreground">
-                          ... and {orchestratorState.executionState.action_queue.length - 5} more actions
+                          ... and {(orchestratorState.executionState.action_queue?.length || 0) - 5} more actions
                         </div>
                       )}
                     </div>

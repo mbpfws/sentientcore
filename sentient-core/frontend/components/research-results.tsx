@@ -303,7 +303,7 @@ const ResearchResults: React.FC<ResearchResultsProps> = ({ workflowId }) => {
                     <TabsContent value="summary" className="mt-4">
                       <ScrollArea className="h-[500px]">
                         <ReactMarkdown className="prose prose-sm max-w-none">
-                          {selectedResult.results.summary}
+                          {selectedResult.results.summary || ''}
                         </ReactMarkdown>
                       </ScrollArea>
                     </TabsContent>

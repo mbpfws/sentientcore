@@ -396,6 +396,28 @@ class SSEConnectionManager:
             })
         return clients_info
     
+    async def broadcast_agent_status(
+        self,
+        agent_id: str,
+        status: str,
+        details: Optional[Dict[str, Any]] = None,
+        session_id: Optional[str] = None
+    ):
+        """Broadcast agent status event"""
+        await self.broadcast_event(
+            event_type=EventType.AGENT_STATUS,
+            data={
+                "agent_id": agent_id,
+                "status": status,
+                "details": details or {}
+            },
+            session_id=session_id
+        )
+    
+    async def cleanup(self):
+        """Cleanup the SSE manager (alias for shutdown)"""
+        await self.shutdown()
+    
     async def shutdown(self):
         """Shutdown the SSE manager"""
         # Cancel background tasks

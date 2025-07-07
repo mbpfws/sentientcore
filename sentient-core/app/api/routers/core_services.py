@@ -84,12 +84,24 @@ async def store_memory(request: MemoryStoreRequest):
             "architectural_decision": MemoryType.ARCHITECTURAL_DECISION,
             "dependency_info": MemoryType.DEPENDENCY_INFO,
             "best_practice": MemoryType.BEST_PRACTICE,
-            "error_solution": MemoryType.ERROR_SOLUTION
+            "error_solution": MemoryType.ERROR_SOLUTION,
+            # Add common aliases and missing types
+            "synthesis": MemoryType.RESEARCH_FINDING,  # Map synthesis to research_finding
+            "knowledge": MemoryType.RESEARCH_FINDING,
+            "chat": MemoryType.CONVERSATION,
+            "message": MemoryType.CONVERSATION,
+            "code": MemoryType.CODE_SNIPPET,
+            "docs": MemoryType.DOCUMENTATION,
+            "doc": MemoryType.DOCUMENTATION
         }
         
         memory_type = memory_type_map.get(request.memory_type)
         if not memory_type:
-            raise HTTPException(status_code=400, detail=f"Invalid memory type: {request.memory_type}")
+            available_types = list(memory_type_map.keys())
+            raise HTTPException(
+                status_code=422, 
+                detail=f"Invalid memory type: '{request.memory_type}'. Available types: {available_types}"
+            )
         
         # Store the memory
         memory_id = await memory_service.store_memory(
@@ -141,9 +153,23 @@ async def retrieve_memory(request: MemoryRetrieveRequest):
                 "architectural_decision": MemoryType.ARCHITECTURAL_DECISION,
                 "dependency_info": MemoryType.DEPENDENCY_INFO,
                 "best_practice": MemoryType.BEST_PRACTICE,
-                "error_solution": MemoryType.ERROR_SOLUTION
+                "error_solution": MemoryType.ERROR_SOLUTION,
+                # Add common aliases and missing types
+                "synthesis": MemoryType.RESEARCH_FINDING,
+                "knowledge": MemoryType.RESEARCH_FINDING,
+                "chat": MemoryType.CONVERSATION,
+                "message": MemoryType.CONVERSATION,
+                "code": MemoryType.CODE_SNIPPET,
+                "docs": MemoryType.DOCUMENTATION,
+                "doc": MemoryType.DOCUMENTATION
             }
             memory_type = memory_type_map.get(request.memory_type)
+            if request.memory_type and not memory_type:
+                available_types = list(memory_type_map.keys())
+                raise HTTPException(
+                    status_code=422, 
+                    detail=f"Invalid memory type: '{request.memory_type}'. Available types: {available_types}"
+                )
         
         # Retrieve memories
         memories = await memory_service.retrieve_memories(

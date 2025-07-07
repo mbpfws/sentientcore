@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Import implementation agent
 from core.agents.feature_implementation_agent import get_feature_implementation_agent
-from core.services.service_factory import ServiceFactory, get_service_factory
+from app.services.service_factory import ServiceFactory, get_service_factory
 from core.services.memory_service import MemoryLayer
 
 # Import models

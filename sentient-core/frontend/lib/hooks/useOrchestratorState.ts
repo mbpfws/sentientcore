@@ -276,7 +276,8 @@ export function useOrchestratorState() {
       created_at: new Date()
     };
     
-    const updatedQueue = [...stateRef.current.executionState.action_queue, newAction]
+    const currentQueue = stateRef.current.executionState.action_queue || [];
+    const updatedQueue = [...currentQueue, newAction]
       .sort((a, b) => {
         const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
         return priorityOrder[b.priority] - priorityOrder[a.priority];
@@ -299,12 +300,12 @@ export function useOrchestratorState() {
 
   // Execute next action in queue
   const executeNextAction = useCallback(async () => {
-    if (stateRef.current.executionState.is_executing || stateRef.current.executionState.action_queue.length === 0) {
+    if (stateRef.current.executionState.is_executing || !stateRef.current.executionState.action_queue || stateRef.current.executionState.action_queue.length === 0) {
       return;
     }
     
     const nextAction = stateRef.current.executionState.action_queue[0];
-    const remainingQueue = stateRef.current.executionState.action_queue.slice(1);
+    const remainingQueue = (stateRef.current.executionState.action_queue || []).slice(1);
     
     updateState({
       executionState: {
@@ -461,8 +462,8 @@ export function useOrchestratorState() {
     clearState,
     
     // Computed values
-    hasActiveActions: state.executionState.action_queue.length > 0 || state.executionState.is_executing,
-    nextAction: state.executionState.action_queue[0] || null,
+    hasActiveActions: (state.executionState.action_queue?.length || 0) > 0 || state.executionState.is_executing,
+    nextAction: state.executionState.action_queue?.[0] || null,
     isHealthy: state.errorCount < 5 && state.isConnected,
     sessionDuration: state.conversationContext.session_metadata ? 
       Date.now() - state.conversationContext.session_metadata.start_time.getTime() : 0

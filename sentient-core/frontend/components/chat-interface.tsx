@@ -439,7 +439,7 @@ const ChatInterface = () => {
                         </div>
                       )}
                       <ReactMarkdown>
-                        {message.content}
+                        {message.content || ''}
                       </ReactMarkdown>
                     </div>
                   )}

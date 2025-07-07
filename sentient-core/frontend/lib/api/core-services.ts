@@ -125,7 +125,7 @@ export class CoreServicesClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}/api/core-services${endpoint}`;
+    const url = `${this.baseUrl}/api/core-services?endpoint=${encodeURIComponent(endpoint)}`;
     
     const response = await fetch(url, {
       headers: {

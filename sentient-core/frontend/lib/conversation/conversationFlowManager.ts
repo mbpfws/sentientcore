@@ -220,7 +220,7 @@ class ConversationFlowManager {
         from: 'research',
         to: 'planning',
         condition: (context, messages) => {
-          const recentMessages = messages.slice(-5);
+          const recentMessages = (messages || []).slice(-5);
           return recentMessages.some(msg => 
             msg.content.toLowerCase().includes('research complete') ||
             msg.content.toLowerCase().includes('proceed to planning')
@@ -326,6 +326,26 @@ class ConversationFlowManager {
     const flow = this.flows.get(flowId);
     if (flow) {
       this.currentFlow = flow;
+      return true;
+    }
+    return false;
+  }
+
+  initializeFlow(flowType: string, initialContext: any): boolean {
+    const flow = this.flows.get(flowType);
+    if (flow) {
+      // Create a copy of the flow with initial context
+      this.currentFlow = {
+        ...flow,
+        currentPhase: 0,
+        context: {
+          user_intent: flowType,
+          requirements_gathered: false,
+          research_needed: flowType === 'development_project',
+          current_focus: 'requirements_gathering',
+          ...initialContext
+        }
+      };
       return true;
     }
     return false;

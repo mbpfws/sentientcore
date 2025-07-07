@@ -12,6 +12,8 @@ from .llm_service import EnhancedLLMService, LLMConfig, LLMProvider
 from .workflow_service import WorkflowOrchestrator
 from .research_service import EnhancedResearchService, ResearchConfig
 from .agent_service import AgentService, AgentConfig
+from ..core.error_handling import error_handler, SentientCoreError, ErrorContext
+from ..core.health_monitor import health_monitor, ComponentType, HealthStatus
 
 
 @dataclass
@@ -136,83 +138,176 @@ class ServiceFactory:
             for service_name in self._initialization_order:
                 self.logger.info(f"Initializing {service_name}...")
                 
-                if service_name == "memory_service":
-                    await self._init_memory_service()
-                elif service_name == "state_manager":
-                    await self._init_state_manager()
-                elif service_name == "sse_manager":
-                    await self._init_sse_manager()
-                elif service_name == "llm_service":
-                    await self._init_llm_service()
-                elif service_name == "workflow_service":
-                    await self._init_workflow_service()
-                elif service_name == "research_service":
-                    await self._init_research_service()
-                elif service_name == "agent_service":
-                    await self._init_agent_service()
-                
-                self.logger.info(f"{service_name} initialized successfully")
+                try:
+                    if service_name == "memory_service":
+                        await self._init_memory_service()
+                    elif service_name == "state_manager":
+                        await self._init_state_manager()
+                    elif service_name == "sse_manager":
+                        await self._init_sse_manager()
+                    elif service_name == "llm_service":
+                        await self._init_llm_service()
+                    elif service_name == "workflow_service":
+                        await self._init_workflow_service()
+                    elif service_name == "research_service":
+                        await self._init_research_service()
+                    elif service_name == "agent_service":
+                        await self._init_agent_service()
+                    
+                    # Register successful initialization with health monitor
+                    health_monitor.register_component(
+                        service_name, ComponentType.SERVICE, HealthStatus.HEALTHY
+                    )
+                    self.logger.info(f"✓ {service_name} initialized successfully")
+                    
+                except Exception as service_error:
+                    # Handle error with error handler
+                    error_handler.handle_error(
+                        service_error, ErrorContext(
+                            component=service_name,
+                            operation="initialization",
+                            user_id="system"
+                        )
+                    )
+                    # Register failed initialization with health monitor
+                    health_monitor.register_component(
+                        service_name, ComponentType.SERVICE, HealthStatus.UNHEALTHY
+                    )
+                    self.logger.error(f"✗ {service_name} initialization failed: {service_error}")
+                    self.logger.error(f"Error type: {type(service_error).__name__}")
+                    import traceback
+                    self.logger.error(f"Full traceback: {traceback.format_exc()}")
+                    raise
             
             self._initialized = True
-            self.logger.info("All services initialized successfully")
+            # Register overall factory health
+            health_monitor.register_component(
+                "service_factory", ComponentType.SERVICE, HealthStatus.HEALTHY
+            )
+            self.logger.info("🎉 All services initialized successfully")
             return True
             
         except Exception as e:
-            self.logger.error(f"Service initialization failed: {e}")
+            # Handle overall initialization error
+            error_handler.handle_error(
+                e, ErrorContext(
+                    component="service_factory",
+                    operation="initialize_all",
+                    user_id="system"
+                )
+            )
+            # Register factory as unhealthy
+            health_monitor.register_component(
+                "service_factory", ComponentType.SERVICE, HealthStatus.UNHEALTHY
+            )
+            self.logger.error(f"💥 Service initialization failed: {e}")
+            self.logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
             await self.cleanup_all()
             return False
     
     async def _init_memory_service(self):
         """Initialize memory service"""
         self._memory_service = MemoryService(db_path=self.config.memory_db_path)
-        await self._memory_service.initialize()
+        # MemoryService initializes itself in __init__ via _init_database()
     
     async def _init_state_manager(self):
         """Initialize state manager"""
         self._state_manager = EnhancedStateManager(
             db_path=self.config.state_db_path,
             storage_path=self.config.state_storage_path,
-            persistence_mode=PersistenceMode.HYBRID
+            persistence_mode=PersistenceMode.IMMEDIATE
         )
-        await self._state_manager.initialize()
+        # EnhancedStateManager doesn't need async initialization
     
     async def _init_sse_manager(self):
         """Initialize SSE manager"""
         self._sse_manager = SSEConnectionManager(
             heartbeat_interval=self.config.sse_heartbeat_interval,
-            max_connections=self.config.max_sse_connections
+            max_queue_size=self.config.max_sse_connections
         )
         # SSE manager doesn't need async initialization
     
     async def _init_llm_service(self):
         """Initialize LLM service"""
-        # Determine available providers
-        providers = {}
+        # Determine the primary provider and create a single LLMConfig
+        default_config = None
         
+        # Priority order: Groq -> Google -> OpenAI
         if self.config.groq_api_key:
-            providers[LLMProvider.GROQ] = self.config.groq_api_key
+            default_config = LLMConfig(
+                provider=LLMProvider.GROQ,
+                model=self.config.default_model or "mixtral-8x7b-32768",
+                api_key=self.config.groq_api_key,
+                temperature=0.7,
+                max_tokens=4000,
+                timeout=60,
+                retry_attempts=3
+            )
+        elif self.config.google_api_key:
+            default_config = LLMConfig(
+                provider=LLMProvider.GOOGLE,
+                model=self.config.default_model or "gemini-pro",
+                api_key=self.config.google_api_key,
+                temperature=0.7,
+                max_tokens=4000,
+                timeout=60,
+                retry_attempts=3
+            )
+        elif self.config.openai_api_key:
+            default_config = LLMConfig(
+                provider=LLMProvider.OPENAI,
+                model=self.config.default_model or "gpt-3.5-turbo",
+                api_key=self.config.openai_api_key,
+                temperature=0.7,
+                max_tokens=4000,
+                timeout=60,
+                retry_attempts=3
+            )
         
-        if self.config.google_api_key:
-            providers[LLMProvider.GOOGLE] = self.config.google_api_key
-        
-        if self.config.openai_api_key:
-            providers[LLMProvider.OPENAI] = self.config.openai_api_key
-        
-        if not providers:
+        if not default_config:
             raise ValueError("No LLM API keys configured")
         
-        # Create LLM config
-        llm_config = LLMConfig(
-            providers=providers,
-            default_provider=LLMProvider(self.config.default_llm_provider),
-            default_model=self.config.default_model,
-            enable_caching=True,
-            cache_ttl_seconds=3600,
-            max_retries=3,
-            timeout_seconds=60
-        )
+        self._llm_service = EnhancedLLMService(default_config)
         
-        self._llm_service = EnhancedLLMService(llm_config)
+        # Add additional provider configs if available
+        if self.config.groq_api_key and default_config.provider != LLMProvider.GROQ:
+            groq_config = LLMConfig(
+                provider=LLMProvider.GROQ,
+                model="mixtral-8x7b-32768",
+                api_key=self.config.groq_api_key,
+                temperature=0.7,
+                max_tokens=4000,
+                timeout=60,
+                retry_attempts=3
+            )
+            self._llm_service.add_provider_config("groq", groq_config)
+        
+        if self.config.google_api_key and default_config.provider != LLMProvider.GOOGLE:
+            google_config = LLMConfig(
+                provider=LLMProvider.GOOGLE,
+                model="gemini-pro",
+                api_key=self.config.google_api_key,
+                temperature=0.7,
+                max_tokens=4000,
+                timeout=60,
+                retry_attempts=3
+            )
+            self._llm_service.add_provider_config("google", google_config)
+        
+        if self.config.openai_api_key and default_config.provider != LLMProvider.OPENAI:
+            openai_config = LLMConfig(
+                provider=LLMProvider.OPENAI,
+                model="gpt-3.5-turbo",
+                api_key=self.config.openai_api_key,
+                temperature=0.7,
+                max_tokens=4000,
+                timeout=60,
+                retry_attempts=3
+            )
+            self._llm_service.add_provider_config("openai", openai_config)
+        
         # LLM service doesn't need async initialization
     
     async def _init_workflow_service(self):
@@ -224,9 +319,7 @@ class ServiceFactory:
             memory_service=self._memory_service,
             state_manager=self._state_manager,
             llm_service=self._llm_service,
-            sse_manager=self._sse_manager,
-            max_concurrent_workflows=self.config.max_concurrent_workflows,
-            default_timeout_minutes=self.config.workflow_timeout_minutes
+            sse_manager=self._sse_manager
         )
         # Workflow service doesn't need async initialization
     
