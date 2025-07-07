@@ -198,18 +198,15 @@ export function useOrchestratorState() {
     
     // Store in backend if session exists
     if (stateRef.current.sessionId) {
-      coreServicesClient.storeMemory({
-        layer: 'session',
-        type: 'conversation',
-        key: `message_${newMessage.id}`,
-        data: { ...newMessage },
-        metadata: { 
-          session_id: stateRef.current.sessionId, 
-          workflow_mode: stateRef.current.orchestratorMode 
+      coreServicesClient.storeMemory(stateRef.current.sessionId, {
+        content: { ...newMessage },
+        metadata: {
+          session_id: stateRef.current.sessionId,
+          workflow_mode: stateRef.current.orchestratorMode
         }
       }).catch(error => {
         console.error('Failed to store message:', error);
-        updateState({ 
+        updateState({
           lastError: `Failed to store message: ${error.message}`,
           errorCount: stateRef.current.errorCount + 1
         });

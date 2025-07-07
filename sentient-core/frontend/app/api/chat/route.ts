@@ -8,7 +8,7 @@ const BACKEND_URL = 'http://127.0.0.1:8000';
 export async function GET(request: NextRequest) {
   try {
     // Forward GET requests to backend
-    const response = await fetch(`${BACKEND_URL}/api/chat/message/json`, {
+    const response = await fetch(`${BACKEND_URL}/api/memory/retrieve`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Forward POST requests to backend
-    const response = await fetch(`${BACKEND_URL}/api/chat/message/json`, {
+    const response = await fetch(`${BACKEND_URL}/api/memory/store`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
