@@ -6,7 +6,7 @@ langchain
 langgraph
 groq
 google-generativeai
-pyautogen
+ag2
 chromadb
 sentence-transformers
 tavily-python
